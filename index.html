@@ -1,0 +1,2930 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0F0D0B">
+<meta name="apple-mobile-web-app-title" content="Cantina Molinaro">
+<title>Cantina Molinaro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0F0D0B;
+  --bg-elev: #181512;
+  --surface: #221E1A;
+  --surface-2: #2E2822;
+  --border: rgba(255,240,220,0.06);
+  --border-strong: rgba(255,240,220,0.14);
+  --ink: #F0E8D8;
+  --ink-soft: #C9BCA8;
+  --muted: #8A7D6E;
+  --muted-2: #6B6057;
+  --wine: #C4455E;
+  --wine-dark: #A02840;
+  --wine-soft: rgba(196,69,94,0.14);
+  --gold: #E2BF7A;
+  --gold-soft: rgba(226,191,122,0.12);
+  --green: #7EC88E;
+  --green-soft: rgba(126,200,142,0.14);
+  --yellow: #E8C547;
+  --yellow-soft: rgba(232,197,71,0.14);
+  --amber: #E8A040;
+  --amber-soft: rgba(232,160,64,0.14);
+  --blue: #7AABDC;
+  --blue-soft: rgba(122,171,220,0.14);
+  --red-warn: #E07070;
+  --red-soft: rgba(224,112,112,0.14);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --st: env(safe-area-inset-top, 0px);
+  --sb: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; overflow: hidden; font-size: 14px; }
+body {
+  display: flex; flex-direction: column;
+  background-image: radial-gradient(circle at 20% 10%, rgba(196,69,94,0.04) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 90%, rgba(226,191,122,0.03) 0%, transparent 50%);
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--bg-elev); border-bottom: 1px solid var(--border);
+  padding: 12px 20px; padding-top: calc(12px + var(--st));
+  display: flex; align-items: center; gap: 16px; flex-shrink: 0;
+}
+.logo { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 400; color: var(--wine); letter-spacing: -0.5px; line-height: 1; }
+.logo-dot { color: var(--gold); }
+.header-spacer { flex: 1; }
+.header-stats { display: flex; gap: 20px; }
+.hstat { text-align: right; }
+.hstat-val { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 500; color: var(--ink); }
+.hstat-lbl { font-size: 10px; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-top: 1px; }
+@media (max-width: 600px) {
+  .header-stats { gap: 12px; }
+  .hstat-val { font-size: 15px; }
+  .logo { font-size: 16px; }
+}
+
+/* ── TAB NAV ── */
+.tabs {
+  background: var(--bg-elev); border-bottom: 1px solid var(--border);
+  display: flex; flex-shrink: 0; padding: 0 16px; gap: 4px; overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  padding: 10px 14px; font-size: 12px; font-weight: 500; letter-spacing: 0.3px;
+  color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all 0.15s; white-space: nowrap; display: flex; align-items: center; gap: 5px;
+}
+.tab.active { color: var(--wine); border-bottom-color: var(--wine); }
+.tab-spacer { flex: 1; }
+.tab-add { color: var(--gold) !important; font-weight: 600; }
+
+/* ── MAIN ── */
+.main { flex: 1; display: flex; overflow: hidden; }
+
+/* ── FILTER PANEL ── */
+.filter-panel {
+  width: 260px; flex-shrink: 0; background: var(--bg-elev);
+  border-right: 1px solid var(--border); overflow-y: auto;
+  padding: 16px 14px; padding-bottom: calc(16px + var(--sb));
+  display: flex; flex-direction: column; gap: 18px;
+  scrollbar-width: thin;
+}
+.filter-panel::-webkit-scrollbar { width: 4px; }
+.filter-panel::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+@media (max-width: 800px) {
+  .filter-panel { position: fixed; inset: 0 auto 0 0; width: 290px; z-index: 200; transform: translateX(-100%); transition: transform 0.25s; padding-top: calc(16px + var(--st)); box-shadow: 0 0 40px rgba(0,0,0,0.15); }
+  .filter-panel.open { transform: translateX(0); }
+  .filter-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 199; display: none; backdrop-filter: blur(3px); }
+  .filter-overlay.open { display: block; }
+}
+
+.fsec-title { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.finput {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 13px;
+  color: var(--ink); outline: none; transition: border-color 0.15s;
+}
+.finput:focus { border-color: var(--wine); background: var(--bg-elev); }
+.finput::placeholder { color: var(--muted); }
+
+.fcheck {
+  display: flex; align-items: center; gap: 8px; padding: 5px 2px;
+  cursor: pointer; border-radius: 4px; font-size: 12px; color: var(--ink-soft);
+  transition: color 0.12s;
+}
+.fcheck:hover { color: var(--ink); }
+.fcheck input { display: none; }
+.fcheck-box {
+  width: 15px; height: 15px; border-radius: 3px;
+  border: 1.5px solid var(--border-strong); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.12s;
+}
+.fcheck input:checked ~ .fcheck-box { background: var(--wine); border-color: var(--wine); }
+.fcheck input:checked ~ .fcheck-box::after { content: '✓'; color: white; font-size: 10px; font-weight: 700; }
+.fcheck input:checked ~ span:first-of-type { color: var(--wine); font-weight: 500; }
+.fcheck-cnt { margin-left: auto; font-size: 10px; color: var(--muted); }
+
+.range-row { display: flex; gap: 6px; align-items: center; }
+.range-input {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; font-family: inherit; font-size: 12px;
+  color: var(--ink); outline: none; text-align: center; transition: border-color 0.15s;
+}
+.range-input:focus { border-color: var(--wine); background: var(--bg-elev); }
+.range-sep { color: var(--muted); font-size: 11px; }
+
+.filter-reset {
+  width: 100%; padding: 8px; border-radius: 6px; background: transparent;
+  border: 1px solid var(--border); color: var(--muted); font-family: inherit;
+  font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.filter-reset:hover { border-color: var(--red-warn); color: var(--red-warn); }
+
+/* ── TABLE AREA ── */
+.table-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.toolbar {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  background: var(--bg-elev);
+}
+.result-cnt { font-size: 12px; color: var(--muted); font-weight: 500; }
+.btn-ghost {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; color: var(--ink-soft); cursor: pointer;
+  display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+}
+.btn-ghost:hover { background: var(--surface-2); }
+.filter-toggle-btn { display: none; }
+@media (max-width: 800px) { .filter-toggle-btn { display: flex; } }
+
+.sort-select {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 10px; font-family: inherit; font-size: 12px; color: var(--ink-soft);
+  outline: none; cursor: pointer;
+}
+
+/* ── ACTIVE FILTERS ── */
+.active-filters {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px;
+  background: var(--bg-elev); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  max-height: 0; overflow: hidden; transition: all 0.2s;
+}
+.active-filters.has { padding: 8px 16px; max-height: 120px; }
+.af-chip {
+  background: var(--wine-soft); border: 1px solid rgba(122,17,40,0.2);
+  color: var(--wine); padding: 3px 9px; border-radius: 20px; font-size: 11px;
+  display: flex; align-items: center; gap: 4px; cursor: pointer; transition: background 0.15s;
+}
+.af-chip:hover { background: rgba(122,17,40,0.15); }
+
+/* ── TABLE SCROLL ── */
+.table-scroll { flex: 1; overflow: auto; padding-bottom: var(--sb); }
+.table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.table-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+/* ── TABLE ── */
+table { width: 100%; border-collapse: collapse; min-width: 1100px; background: var(--bg-elev); }
+thead th {
+  background: var(--surface); color: var(--muted); font-size: 10px;
+  font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10; cursor: pointer; white-space: nowrap;
+  user-select: none; transition: color 0.15s;
+}
+thead th:hover { color: var(--ink-soft); }
+thead th.sorted { color: var(--wine); }
+thead th .sort-ico { margin-left: 4px; opacity: 0.5; font-size: 9px; }
+thead th.sorted .sort-ico { opacity: 1; }
+
+tbody tr {
+  border-bottom: 1px solid var(--border); transition: background 0.1s; cursor: pointer;
+}
+tbody tr:hover { background: var(--surface); }
+td { padding: 11px 10px; font-size: 13px; vertical-align: middle; color: var(--ink-soft); }
+
+.type-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.type-rosso { background: #C4455E; box-shadow: 0 0 8px rgba(196,69,94,0.4); }
+.type-bianco { background: #E8C870; box-shadow: 0 0 8px rgba(232,200,112,0.3); }
+.type-spumante { background: #7AABDC; box-shadow: 0 0 8px rgba(122,171,220,0.3); }
+.type-rose { background: #E48BAE; box-shadow: 0 0 8px rgba(228,139,174,0.3); }
+
+.td-name { font-family: 'Fraunces', serif; font-size: 15px; color: var(--ink); line-height: 1.25; font-weight: 500; }
+.td-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.chip {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px;
+  font-size: 10px; font-weight: 500; white-space: nowrap; letter-spacing: 0.2px;
+}
+.chip-doc { background: var(--surface-2); color: var(--ink-soft); }
+.chip-qty { background: var(--green-soft); color: var(--green); font-weight: 600; }
+.chip-qty-0 { background: var(--surface-2); color: var(--muted); }
+.chip-pos { background: var(--blue-soft); color: var(--blue); font-family: 'SF Mono', Menlo, monospace; font-weight: 600; }
+.chip-price { color: var(--ink); font-weight: 500; font-size: 13px; }
+
+/* ── FINESTRA BEVUTA column ── */
+.dw-col { min-width: 150px; }
+.dw-status-row { display: flex; align-items: center; gap: 6px; }
+.dw-badge {
+  padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 600; white-space: nowrap;
+}
+.dw-young { background: var(--amber-soft); color: var(--amber); }
+.dw-ready { background: var(--yellow-soft); color: var(--yellow); }
+.dw-peak { background: var(--green-soft); color: var(--green); border: 1px solid var(--green); }
+.dw-mature { background: var(--blue-soft); color: var(--blue); }
+.dw-old { background: var(--red-soft); color: var(--red-warn); }
+.dw-unknown { background: var(--surface-2); color: var(--muted); }
+
+.dw-years { font-size: 10px; color: var(--muted); margin-top: 3px; font-family: 'SF Mono', Menlo, monospace; }
+.dw-bar-wrap { position: relative; height: 4px; background: var(--surface-2); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+.dw-bar-fill { position: absolute; height: 100%; background: linear-gradient(90deg, var(--amber) 0%, var(--yellow) 25%, var(--green) 50%, var(--blue) 75%, var(--red-warn) 100%); }
+.dw-marker { position: absolute; top: -2px; width: 2px; height: 8px; background: var(--ink); border-radius: 1px; }
+
+/* ── ABBINAMENTI column ── */
+.abb-col { min-width: 200px; max-width: 280px; }
+.abb-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.abb-tag {
+  background: var(--wine-soft); color: var(--wine); border: 1px solid rgba(122,17,40,0.15);
+  padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 500; white-space: nowrap;
+}
+.abb-tag.meat { background: var(--red-soft); color: var(--red-warn); border-color: rgba(168,52,63,0.2); }
+.abb-tag.fish { background: var(--blue-soft); color: var(--blue); border-color: rgba(58,106,154,0.2); }
+.abb-tag.cheese { background: var(--gold-soft); color: var(--gold); border-color: rgba(184,137,62,0.2); }
+.abb-tag.pasta { background: var(--amber-soft); color: var(--amber); border-color: rgba(196,122,32,0.2); }
+.abb-tag.veg { background: var(--green-soft); color: var(--green); border-color: rgba(74,122,62,0.2); }
+.abb-tag.dessert { background: rgba(212,114,154,0.12); color: #C03E7A; border-color: rgba(212,114,154,0.25); }
+.abb-tag.aperitivo { background: rgba(90,138,201,0.12); color: var(--blue); border-color: rgba(90,138,201,0.25); }
+.abb-none { font-size: 11px; color: var(--muted); font-style: italic; }
+
+/* ── MODAL ── */
+.overlay {
+  position: fixed; inset: 0; background: rgba(26,17,12,0.4); z-index: 300;
+  display: none; align-items: flex-end; backdrop-filter: blur(4px);
+}
+.overlay.open { display: flex; }
+@media (min-width: 700px) { .overlay { align-items: center; justify-content: center; } }
+
+.modal {
+  background: var(--bg-elev); border-radius: 20px 20px 0 0; width: 100%;
+  max-height: 92vh; overflow-y: auto; padding-bottom: calc(24px + var(--sb));
+  animation: slideUp 0.25s ease;
+}
+@media (min-width: 700px) { .modal { border-radius: 14px; max-width: 620px; max-height: 88vh; } }
+@keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.modal-handle { width: 32px; height: 4px; background: var(--border-strong); border-radius: 2px; margin: 12px auto 0; }
+.modal-hdr { padding: 16px 22px 0; display: flex; align-items: flex-start; gap: 12px; }
+.modal-title {
+  font-family: 'Fraunces', serif; font-size: 24px; font-weight: 500;
+  color: var(--ink); flex: 1; line-height: 1.2;
+}
+.modal-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.modal-close {
+  width: 32px; height: 32px; border-radius: 50%; background: var(--surface);
+  border: none; color: var(--muted); font-size: 16px; cursor: pointer;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+}
+
+.modal-body { padding: 16px 22px; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.detail-card {
+  background: var(--surface); border-radius: 8px; padding: 10px 12px;
+}
+.detail-lbl { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+.detail-val { font-size: 14px; color: var(--ink); }
+.msec { margin-bottom: 18px; }
+.msec-lbl { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.msec-content {
+  background: var(--surface); border-radius: 10px; padding: 14px;
+}
+
+/* Modal abbinamenti */
+.modal-abb-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.modal-abb-tag {
+  padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 500;
+}
+
+/* Modal drinking window */
+.dw-timeline {
+  position: relative; height: 24px; background: var(--surface-2); border-radius: 12px;
+  margin: 12px 0 8px; overflow: hidden;
+}
+.dw-segment {
+  position: absolute; top: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; color: white;
+}
+.dw-seg-ready { background: var(--yellow); }
+.dw-seg-peak { background: var(--green); }
+.dw-seg-mature { background: var(--blue); opacity: 0.85; }
+.dw-now-marker {
+  position: absolute; top: -3px; bottom: -3px; width: 3px;
+  background: var(--ink); border-radius: 2px; z-index: 2;
+  box-shadow: 0 0 0 2px var(--bg-elev);
+}
+.dw-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); font-family: 'SF Mono', Menlo, monospace; }
+
+.dw-source {
+  margin-top: 14px; padding: 12px; background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.dw-source-title {
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 6px; font-weight: 600;
+}
+.dw-source-text { font-size: 12px; color: var(--ink-soft); line-height: 1.55; }
+.dw-source-text strong { color: var(--gold); font-weight: 600; text-transform: capitalize; }
+.dw-source-note {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--muted); line-height: 1.5; font-style: italic;
+}
+
+.modal-actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+.mact {
+  flex: 1; min-width: 100px; padding: 10px; border-radius: 8px; border: none;
+  font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: opacity 0.15s;
+}
+.mact-primary { background: var(--wine); color: white; }
+.mact-danger { background: var(--red-soft); color: var(--red-warn); border: 1px solid rgba(168,52,63,0.25); }
+.mact-secondary { background: var(--surface); color: var(--ink-soft); border: 1px solid var(--border); }
+.mact:hover { opacity: 0.85; }
+
+.qty-ctrl { display: flex; align-items: center; gap: 16px; background: var(--surface); border-radius: 10px; padding: 10px 16px; justify-content: center; }
+.qty-btn { width: 32px; height: 32px; border-radius: 50%; background: var(--bg-elev); border: 1px solid var(--border-strong); color: var(--ink); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+.qty-btn:active { background: var(--wine); color: white; }
+.qty-val { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 500; color: var(--ink); min-width: 32px; text-align: center; line-height: 1; }
+.qty-lbl { font-size: 10px; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-top: 2px; }
+
+/* ── ADD PANEL ── */
+.add-panel { display: none; }
+.add-panel.open {
+  display: block;
+  position: fixed; inset: 0; z-index: 400; background: var(--bg-elev);
+  overflow-y: auto; padding: 20px; padding-top: calc(20px + var(--st));
+  padding-bottom: calc(20px + var(--sb)); animation: slideUp 0.25s ease;
+}
+.add-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.add-title { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 500; color: var(--ink); flex: 1; }
+.add-close {
+  width: 34px; height: 34px; background: var(--surface); border: none; border-radius: 50%;
+  color: var(--muted); font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 640px; }
+@media (max-width: 500px) { .form-grid { grid-template-columns: 1fr; } }
+.form-full { grid-column: 1 / -1; }
+.flbl { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; display: block; font-weight: 600; }
+.ainp, .asel, .atxt {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 14px;
+  color: var(--ink); outline: none; transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+.ainp:focus, .asel:focus, .atxt:focus { border-color: var(--wine); background: var(--bg-elev); }
+.atxt { resize: none; min-height: 64px; }
+.fsave {
+  width: 100%; max-width: 640px; padding: 13px; background: var(--wine); color: white;
+  border: none; border-radius: 10px; font-family: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; margin-top: 14px; transition: background 0.15s;
+}
+.fsave:hover { background: var(--wine-dark); }
+.save-note { max-width: 640px; text-align: center; font-size: 11px; color: var(--muted); margin-top: 6px; font-style: italic; }
+
+/* AUTOCOMPLETE */
+.ac-wrap { position: relative; }
+.ac-list {
+  position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+  background: var(--bg-elev); border: 1px solid var(--border-strong);
+  border-radius: 8px; max-height: 240px; overflow-y: auto; z-index: 500;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4); display: none;
+}
+.ac-list.open { display: block; }
+.ac-item {
+  padding: 9px 14px; cursor: pointer; font-size: 13px; color: var(--ink-soft);
+  border-bottom: 1px solid var(--border); transition: background 0.1s;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+}
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover, .ac-item.active { background: var(--surface-2); color: var(--ink); }
+.ac-item-main { font-weight: 500; }
+.ac-item-meta { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ac-item mark { background: var(--gold-soft); color: var(--gold); padding: 0 1px; border-radius: 2px; }
+
+/* ── LOGIN SCREEN ── */
+.login-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  background-image: radial-gradient(circle at 20% 10%, rgba(196,69,94,0.08) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 90%, rgba(226,191,122,0.06) 0%, transparent 50%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; padding-top: calc(24px + var(--st)); padding-bottom: calc(24px + var(--sb));
+}
+.login-screen.hidden { display: none; }
+.login-box {
+  background: var(--bg-elev); border: 1px solid var(--border-strong);
+  border-radius: 16px; padding: 36px 30px 28px; max-width: 380px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.login-logo {
+  font-family: 'Fraunces', serif; font-size: 32px; font-weight: 400;
+  color: var(--wine); letter-spacing: -0.5px; text-align: center; margin-bottom: 2px;
+  line-height: 1.05;
+}
+.login-logo span { color: var(--gold); }
+.login-sub {
+  text-align: center; font-size: 11px; color: var(--muted);
+  letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 30px;
+}
+.login-field { margin-bottom: 14px; }
+.login-field label {
+  display: block; font-size: 10px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;
+}
+.login-field input {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 11px 14px; font-family: inherit; font-size: 15px;
+  color: var(--ink); outline: none; transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+.login-field input:focus { border-color: var(--wine); background: var(--bg-elev); }
+.login-btn {
+  width: 100%; padding: 12px; background: var(--wine); color: white;
+  border: none; border-radius: 10px; font-family: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; margin-top: 10px; transition: background 0.15s;
+}
+.login-btn:hover { background: var(--wine-dark); }
+.login-err {
+  margin-top: 14px; padding: 10px; background: var(--red-soft);
+  border: 1px solid rgba(224,112,112,0.3); border-radius: 8px;
+  font-size: 12px; color: var(--red-warn); text-align: center; display: none;
+}
+.login-err.show { display: block; }
+.login-note {
+  margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border);
+  font-size: 10px; color: var(--muted); text-align: center; line-height: 1.6; font-style: italic;
+}
+.login-version {
+  margin-top: 14px; text-align: center;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px; color: var(--gold); letter-spacing: 0.5px;
+  opacity: 0.6;
+}
+
+/* Logout button in header */
+.logout-btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--muted); padding: 4px 10px; border-radius: 6px;
+  font-family: inherit; font-size: 11px; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 4px;
+}
+.logout-btn:hover { border-color: var(--red-warn); color: var(--red-warn); }
+
+/* ── CONFIRMATION DIALOG ── */
+.dialog-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 500;
+  display: none; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(6px); animation: fadeIn 0.2s ease;
+}
+.dialog-overlay.open { display: flex; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.dialog {
+  background: var(--bg-elev); border: 1px solid var(--border-strong);
+  border-radius: 16px; padding: 28px 24px 22px; max-width: 420px; width: 100%;
+  text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  animation: slideUp 0.25s ease;
+}
+.dialog-icon { font-size: 42px; margin-bottom: 10px; }
+.dialog-title {
+  font-family: 'Fraunces', serif; font-size: 22px; font-weight: 500;
+  color: var(--ink); margin-bottom: 10px;
+}
+.dialog-text { font-size: 14px; color: var(--ink-soft); line-height: 1.55; margin-bottom: 22px; }
+.dialog-text strong { color: var(--gold); font-weight: 600; }
+.dialog-ok {
+  background: var(--wine); color: white; border: none; border-radius: 10px;
+  padding: 11px 40px; font-family: inherit; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s; min-width: 120px;
+}
+.dialog-ok:hover { background: var(--wine-dark); }
+
+/* ── AI LEVEL BADGES & SOURCES ── */
+.ai-level-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 10px; font-size: 10px;
+  font-weight: 600; letter-spacing: 0.3px;
+}
+.ai-level-1 { background: rgba(126,200,142,0.15); color: var(--green); border: 1px solid rgba(126,200,142,0.3); }
+.ai-level-2 { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(232,160,64,0.3); }
+.ai-level-3 { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border-strong); }
+
+.ai-analyzing {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px; background: rgba(122,171,220,0.08);
+  border: 1px solid rgba(122,171,220,0.25);
+  border-radius: 10px; font-size: 13px; color: var(--ink-soft);
+  margin: 10px 0;
+}
+.ai-spinner {
+  width: 18px; height: 18px; flex-shrink: 0;
+  border: 2px solid rgba(122,171,220,0.25);
+  border-top-color: var(--blue);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ai-retry-btn {
+  background: transparent; border: 1px solid var(--border-strong);
+  color: var(--blue); padding: 6px 10px; border-radius: 6px;
+  font-family: inherit; font-size: 11px; cursor: pointer;
+  margin-top: 8px; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.ai-retry-btn:hover { border-color: var(--blue); background: rgba(122,171,220,0.08); }
+.ai-retry-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ai-config-wrap {
+  background: rgba(122,171,220,0.06);
+  border: 1px solid rgba(122,171,220,0.2);
+  border-radius: 10px; padding: 14px;
+}
+.ai-config-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 10px; font-size: 10px;
+  font-weight: 600; letter-spacing: 0.3px; margin-left: 6px;
+}
+.ai-config-on { background: rgba(126,200,142,0.15); color: var(--green); }
+.ai-config-off { background: var(--surface-2); color: var(--muted); }
+
+/* ── EDIT MODE ── */
+.edit-btn {
+  background: var(--surface); border: 1px solid var(--border-strong);
+  color: var(--ink-soft); padding: 6px 12px; border-radius: 6px;
+  font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+  flex-shrink: 0;
+}
+.edit-btn:hover { border-color: var(--gold); color: var(--gold); }
+.edit-btn.active { background: var(--gold-soft); border-color: var(--gold); color: var(--gold); }
+
+.edit-input, .edit-select, .edit-textarea {
+  width: 100%; background: var(--bg-elev); border: 1px solid var(--gold);
+  border-radius: 6px; padding: 7px 10px; font-family: inherit; font-size: 13px;
+  color: var(--ink); outline: none; -webkit-appearance: none;
+}
+.edit-input:focus, .edit-select:focus, .edit-textarea:focus {
+  border-color: var(--wine); box-shadow: 0 0 0 3px var(--wine-soft);
+}
+.edit-textarea { resize: vertical; min-height: 60px; }
+.detail-card.editing { background: rgba(226,191,122,0.06); border: 1px dashed var(--gold); }
+
+.delete-section {
+  margin-top: 28px; padding-top: 20px;
+  border-top: 1px dashed var(--border-strong);
+}
+.delete-btn {
+  width: 100%; padding: 11px; background: transparent;
+  border: 1px solid rgba(224,112,112,0.35); border-radius: 8px;
+  color: var(--red-warn); font-family: inherit; font-size: 13px;
+  font-weight: 500; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.delete-btn:hover { background: var(--red-soft); border-color: var(--red-warn); }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: calc(20px + var(--sb)); left: 50%;
+  transform: translateX(-50%); background: var(--ink); color: var(--bg);
+  padding: 10px 20px; border-radius: 24px; font-size: 12px; font-weight: 500;
+  z-index: 999; opacity: 0; transition: opacity 0.25s; pointer-events: none;
+  white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+.toast.show { opacity: 1; }
+
+/* ── EMPTY ── */
+.empty { text-align: center; padding: 60px 24px; color: var(--muted); }
+.empty-title { font-family: 'Fraunces', serif; font-size: 20px; color: var(--ink-soft); margin-bottom: 4px; }
+.empty-sub { font-size: 12px; }
+
+/* ── STATS PAGE ── */
+.stats-wrap { padding: 20px; overflow-y: auto; height: 100%; padding-bottom: calc(40px + var(--sb)); }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px;
+}
+.stat-val { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 500; color: var(--ink); line-height: 1; }
+.stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; letter-spacing: 0.5px; }
+.chart-card {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px; margin-bottom: 12px;
+}
+.chart-title { font-size: 11px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 14px; font-weight: 600; }
+.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
+.bar-label { color: var(--ink-soft); min-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { flex: 1; height: 7px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--wine); border-radius: 4px; transition: width 0.5s; }
+.bar-fill.gold { background: var(--gold); }
+.bar-fill.green { background: var(--green); }
+.bar-count { font-size: 11px; color: var(--muted); min-width: 24px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Pages */
+.page { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.page.active { display: flex; }
+
+/* Mobile: compact table - hide some columns */
+@media (max-width: 600px) {
+  table { min-width: 760px; }
+  .col-area, .col-doc { display: none; }
+  th.col-area, th.col-doc { display: none; }
+  td.col-area, td.col-doc { display: none; }
+}
+
+/* Storico tab: nascondi tutto quello che riguarda la Posizione (il vino non è più in cantina) */
+body.tab-storico .col-pos,
+body.tab-storico th.col-pos,
+body.tab-storico td.col-pos,
+body.tab-storico .fsec-pos,
+body.tab-storico .sort-opt-pos {
+  display: none !important;
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">Cantina<br>Molinaro<span>.</span></div>
+    <div class="login-sub">Accesso riservato</div>
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" id="login-user" autocomplete="username" autocapitalize="off">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="login-pwd" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Entra</button>
+    <div class="login-err" id="login-err">Credenziali non valide</div>
+    <div class="login-note">Area privata. L'accesso non autorizzato è disincentivato.</div>
+    <div class="login-version" id="loginVersion"></div>
+  </div>
+</div>
+
+<div class="filter-overlay" id="filterOverlay" onclick="toggleFilters()"></div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">Cantina<br>Molinaro<span class="logo-dot">.</span></div>
+  <div class="header-spacer"></div>
+  <div class="header-stats">
+    <div class="hstat"><div class="hstat-val" id="hs-bottles">—</div><div class="hstat-lbl">Bottiglie</div></div>
+    <div class="hstat"><div class="hstat-val" id="hs-value">—</div><div class="hstat-lbl">Valore</div></div>
+  </div>
+  <div id="sync-indicator" onclick="initApp()" title="Stato connessione — click per riconnettere" style="margin-left:12px;font-size:14px;cursor:pointer;padding:4px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;gap:6px;"><span style="color:var(--muted);">●</span> <span style="color:var(--muted);font-size:10px;">—</span></div>
+  <button class="logout-btn" onclick="doLogout()" title="Esci" style="margin-left:12px;">⎋ Esci</button>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" data-tab="stock" onclick="setTab('stock')">🍷 In Cantina</div>
+  <div class="tab" data-tab="storico" onclick="setTab('storico')">📚 Storico</div>
+  <div class="tab" data-tab="stats" onclick="setTab('stats')">📊 Statistiche</div>
+  <div class="tab-spacer"></div>
+  <div class="tab tab-add" onclick="openAdd()">+ Aggiungi</div>
+</div>
+
+<!-- STOCK + STORICO PAGE -->
+<div class="page active" id="page-stock">
+  <div class="main">
+    <!-- FILTER PANEL -->
+    <div class="filter-panel" id="filterPanel">
+      <div>
+        <div class="fsec-title">🔍 Ricerca</div>
+        <input class="finput" id="searchInput" placeholder="Vino, produttore, zona…" oninput="applyFilters()">
+      </div>
+      <div>
+        <div class="fsec-title">Tipo</div>
+        <div id="filter-tipo"></div>
+      </div>
+      <div>
+        <div class="fsec-title">Finestra Bevuta</div>
+        <div id="filter-dw"></div>
+      </div>
+      <div>
+        <div class="fsec-title">Regione</div>
+        <div id="filter-regione"></div>
+      </div>
+      <div>
+        <div class="fsec-title">Abbinamenti</div>
+        <div id="filter-abb"></div>
+      </div>
+      <div>
+        <div class="fsec-title">Marchio</div>
+        <div id="filter-etichetta"></div>
+      </div>
+      <div class="fsec-pos">
+        <div class="fsec-title">Posizione</div>
+        <div id="filter-quadrante"></div>
+      </div>
+      <div>
+        <div class="fsec-title">Vendemmia</div>
+        <div class="range-row">
+          <input class="range-input" id="yearFrom" placeholder="Da" type="number" oninput="applyFilters()">
+          <span class="range-sep">–</span>
+          <input class="range-input" id="yearTo" placeholder="A" type="number" oninput="applyFilters()">
+        </div>
+      </div>
+      <div>
+        <div class="fsec-title">Prezzo €</div>
+        <div class="range-row">
+          <input class="range-input" id="priceFrom" placeholder="Min" type="number" oninput="applyFilters()">
+          <span class="range-sep">–</span>
+          <input class="range-input" id="priceTo" placeholder="Max" type="number" oninput="applyFilters()">
+        </div>
+      </div>
+      <button class="filter-reset" onclick="resetFilters()">✕ Azzera filtri</button>
+    </div>
+
+    <!-- TABLE AREA -->
+    <div class="table-area">
+      <div class="toolbar">
+        <button class="btn-ghost filter-toggle-btn" onclick="toggleFilters()">⚙ Filtri</button>
+        <div class="result-cnt" id="resultCount">—</div>
+        <div style="flex:1"></div>
+        <select class="sort-select" id="sortSelect" onchange="applyFilters()">
+          <option value="vendemmia_asc">Vendemmia ↑</option>
+          <option value="vendemmia_desc">Vendemmia ↓</option>
+          <option value="bottiglia_asc">Nome A→Z</option>
+          <option value="valore_asc">Prezzo ↑</option>
+          <option value="valore_desc">Prezzo ↓</option>
+          <option value="riconteggio_desc">Quantità ↓</option>
+          <option class="sort-opt-pos" value="quadrante_asc">Posizione</option>
+        </select>
+      </div>
+      <div class="active-filters" id="activeFilters"></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:14px;padding-right:4px;"></th>
+              <th onclick="setSort('bottiglia')">Vino <span class="sort-ico">⇅</span></th>
+              <th onclick="setSort('vendemmia')" style="width:60px;">Anno <span class="sort-ico">⇅</span></th>
+              <th onclick="setSort('regione')">Zona <span class="sort-ico">⇅</span></th>
+              <th class="col-area" onclick="setSort('area')">Area <span class="sort-ico">⇅</span></th>
+              <th class="col-doc" onclick="setSort('etichetta')">Marchio <span class="sort-ico">⇅</span></th>
+              <th class="col-pos" onclick="setSort('quadrante')" style="width:70px;">Posizione <span class="sort-ico">⇅</span></th>
+              <th onclick="setSort('valore')" style="width:70px;">€ <span class="sort-ico">⇅</span></th>
+              <th onclick="setSort('riconteggio')" style="width:50px;">Bott. <span class="sort-ico">⇅</span></th>
+              <th style="width:160px;">Finestra Bevuta</th>
+              <th>Abbinamenti</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS PAGE -->
+<div class="page" id="page-stats">
+  <div class="stats-wrap" id="statsWrap"></div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="closeModalIf(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-hdr">
+      <div style="flex:1;min-width:0;">
+        <div class="modal-title" id="modal-title"></div>
+        <div class="modal-sub" id="modal-sub"></div>
+      </div>
+      <div id="modal-edit-header"></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ADD PANEL -->
+<div class="add-panel" id="addPanel">
+  <div class="add-hdr">
+    <div class="add-title">Aggiungi Bottiglia</div>
+    <button class="add-close" onclick="closeAdd()">✕</button>
+  </div>
+  <div class="form-grid">
+    <div class="form-full">
+      <label class="flbl">Azienda *</label>
+      <div class="ac-wrap">
+        <input class="ainp" id="f-azienda" placeholder="es. Quintarelli" autocomplete="off">
+        <div class="ac-list" id="ac-azienda"></div>
+      </div>
+    </div>
+    <div class="form-full">
+      <label class="flbl">Nome Vino *</label>
+      <input class="ainp" id="f-bottiglia" placeholder="es. Amarone della Valpolicella" autocomplete="off">
+    </div>
+    <div>
+      <label class="flbl">Regione</label>
+      <div class="ac-wrap">
+        <input class="ainp" id="f-regione" placeholder="Veneto" autocomplete="off">
+        <div class="ac-list" id="ac-regione"></div>
+      </div>
+    </div>
+    <div>
+      <label class="flbl">Area</label>
+      <div class="ac-wrap">
+        <input class="ainp" id="f-area" placeholder="Valpolicella" autocomplete="off">
+        <div class="ac-list" id="ac-area"></div>
+      </div>
+    </div>
+    <div>
+      <label class="flbl">Vendemmia</label>
+      <input class="ainp" id="f-vendemmia" type="number" placeholder="2020">
+    </div>
+    <div>
+      <label class="flbl">Tipo</label>
+      <select class="asel" id="f-tipo">
+        <option value="Rosso">Rosso</option>
+        <option value="Bianco">Bianco</option>
+        <option value="Bianco Spumante">Spumante</option>
+        <option value="Rosè">Rosè</option>
+        <option value="Rose Spumante">Spumante Rosè</option>
+      </select>
+    </div>
+    <div>
+      <label class="flbl">Marchio</label>
+      <div class="ac-wrap">
+        <input class="ainp" id="f-etichetta" placeholder="DOCG / DOC / IGT" autocomplete="off">
+        <div class="ac-list" id="ac-etichetta"></div>
+      </div>
+    </div>
+    <div>
+      <label class="flbl">Posizione</label>
+      <div class="ac-wrap">
+        <input class="ainp" id="f-quadrante" placeholder="Dx1, Sx4..." autocomplete="off">
+        <div class="ac-list" id="ac-quadrante"></div>
+      </div>
+    </div>
+    <div>
+      <label class="flbl">Quantità</label>
+      <input class="ainp" id="f-qta" type="number" value="1" min="1">
+    </div>
+    <div>
+      <label class="flbl">Valore € / bott.</label>
+      <input class="ainp" id="f-valore" type="number" placeholder="0">
+    </div>
+    <div class="form-full">
+      <label class="flbl">Note acquisto</label>
+      <input class="ainp" id="f-note" placeholder="Dove, quando, da chi…">
+    </div>
+    <div class="form-full">
+      <label class="flbl">Note degustazione</label>
+      <textarea class="atxt" id="f-utilizzo" placeholder="Caratteristiche, profilo…"></textarea>
+    </div>
+  </div>
+  <button class="fsave" onclick="saveWine()">💾 Salva Bottiglia</button>
+  <div class="save-note">Finestra di bevuta e abbinamenti verranno calcolati automaticamente dal vitigno / tipologia</div>
+</div>
+
+<!-- AUTO-MOVE TO STORICO DIALOG -->
+<div class="dialog-overlay" id="autoMoveDialog">
+  <div class="dialog">
+    <div class="dialog-icon">📚</div>
+    <div class="dialog-title">Vino terminato</div>
+    <div class="dialog-text" id="autoMoveText"></div>
+    <button class="dialog-ok" onclick="confirmAutoMove()">OK</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// AUTHENTICATION — Client-side password (debole, per casual users)
+// ⚠️ NOTA: queste credenziali sono visibili nel sorgente HTML.
+// Non è sicurezza reale. Per sicurezza seria serve backend (Cloudflare Worker).
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// VERSION
+// ═══════════════════════════════════════════════════════════
+const APP_VERSION = 'v23 — Apr 2026';
+
+const AUTH_USER = 'Andrea';
+const AUTH_PWD  = 'BeviTutto2026';
+const AUTH_KEY  = 'cantina_auth';
+
+function checkAuth() {
+  // Popola la versione visibile in login (idempotente)
+  const lv = document.getElementById('loginVersion');
+  if (lv) lv.textContent = APP_VERSION;
+  const token = localStorage.getItem(AUTH_KEY);
+  if (token === btoa(AUTH_USER + ':' + AUTH_PWD)) {
+    document.getElementById('loginScreen').classList.add('hidden');
+    return true;
+  }
+  document.getElementById('loginScreen').classList.remove('hidden');
+  // Focus user field
+  setTimeout(() => {
+    const u = document.getElementById('login-user');
+    if (u) u.focus();
+  }, 100);
+  return false;
+}
+
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim().toLowerCase();
+  const p = document.getElementById('login-pwd').value;
+  const err = document.getElementById('login-err');
+  if (u === AUTH_USER.toLowerCase() && p === AUTH_PWD) {
+    localStorage.setItem(AUTH_KEY, btoa(AUTH_USER + ':' + AUTH_PWD));
+    err.classList.remove('show');
+    document.getElementById('login-user').value = '';
+    document.getElementById('login-pwd').value = '';
+    document.getElementById('loginScreen').classList.add('hidden');
+  } else {
+    err.classList.add('show');
+    document.getElementById('login-pwd').value = '';
+    document.getElementById('login-pwd').focus();
+  }
+}
+
+function doLogout() {
+  if (!confirm('Uscire dall\'app? I dati salvati restano sul dispositivo.')) return;
+  localStorage.removeItem(AUTH_KEY);
+  location.reload();
+}
+
+// Enter key to submit login
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const loginScreen = document.getElementById('loginScreen');
+    if (loginScreen && !loginScreen.classList.contains('hidden')) {
+      doLogin();
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// AI MODULE — Arricchimento via Cloudflare Worker
+// ═══════════════════════════════════════════════════════════
+const AI_URL_KEY = 'cantina_ai_url';
+const AI_TOKEN_KEY = 'cantina_ai_token';
+const AI_TIMEOUT_MS = 30000;
+
+function getAIUrl() {
+  return (localStorage.getItem(AI_URL_KEY) || '').trim();
+}
+function setAIUrl(url) {
+  url = (url || '').trim().replace(/\/$/, ''); // remove trailing slash
+  if (url) localStorage.setItem(AI_URL_KEY, url);
+  else localStorage.removeItem(AI_URL_KEY);
+}
+function getAIToken() {
+  return (localStorage.getItem(AI_TOKEN_KEY) || '').trim();
+}
+function setAIToken(token) {
+  token = (token || '').trim();
+  if (token) localStorage.setItem(AI_TOKEN_KEY, token);
+  else localStorage.removeItem(AI_TOKEN_KEY);
+}
+function isAIEnabled() {
+  return !!getAIUrl() && !!getAIToken();
+}
+
+// Chiama il Worker /ai per arricchire un vino
+// Risolve con { livello, fonte, finestraBevuta, abbinamenti, note } o null in caso di errore
+async function callAI(wine) {
+  const baseUrl = getAIUrl();
+  const token = getAIToken();
+  if (!baseUrl || !token) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  try {
+    const res = await fetch(baseUrl + '/ai', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify({
+        azienda: wine.azienda,
+        bottiglia: wine.bottiglia,
+        vendemmia: wine.vendemmia,
+        regione: wine.regione,
+        area: wine.area,
+        etichetta: wine.etichetta,
+        tipo: wine.tipo,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      console.warn('AI worker returned', res.status);
+      return null;
+    }
+    const data = await res.json();
+    if (!data || !data.finestraBevuta || !data.abbinamenti) {
+      console.warn('AI response malformed', data);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    clearTimeout(timer);
+    console.warn('AI call failed:', err.message || err);
+    return null;
+  }
+}
+
+// Validazione finestra di bevuta: start < peak < end e valori plausibili
+function isValidFinestra(fw) {
+  if (!fw || typeof fw.start !== 'number' || typeof fw.peak !== 'number' || typeof fw.end !== 'number') return false;
+  if (fw.start < 1900 || fw.end > 2100) return false;
+  if (fw.start > fw.peak) return false;
+  if (fw.peak > fw.end) return false;
+  return true;
+}
+
+// Arricchisce un vino tramite AI (se configurata) altrimenti usa DB interno
+// Aggiorna l'oggetto wine direttamente e salva
+async function enrichWithAI(wine, { forceAI = false } = {}) {
+  // Se AI non configurata: fallback a DB interno solo in-memory (non si persiste)
+  if (!isAIEnabled()) {
+    if (!wine.finestraBevuta) enrichWine(wine);
+    return { usedAI: false };
+  }
+  if (!forceAI && wine.aiEnriched) {
+    return { usedAI: true, cached: true };
+  }
+
+  const result = await callAI(wine);
+  if (!result) {
+    if (!wine.finestraBevuta) enrichWine(wine);
+    return { usedAI: false, failed: true, reason: 'network' };
+  }
+
+  if (!isValidFinestra(result.finestraBevuta)) {
+    console.warn('AI: finestra invalida', result.finestraBevuta);
+    if (!wine.finestraBevuta) enrichWine(wine);
+    return { usedAI: false, failed: true, reason: 'invalid_finestra' };
+  }
+
+  if (!Array.isArray(result.abbinamenti) || result.abbinamenti.length === 0) {
+    console.warn('AI: abbinamenti invalidi', result.abbinamenti);
+    if (!wine.finestraBevuta) enrichWine(wine);
+    return { usedAI: false, failed: true, reason: 'invalid_abbinamenti' };
+  }
+
+  // OK: persiste via PATCH /db/:id
+  const patch = {
+    finestraBevuta: result.finestraBevuta,
+    abbinamenti: result.abbinamenti,
+    aiEnriched: true,
+    aiLivello: result.livello || 3,
+    aiFonte: result.fonte || '',
+    aiNote: result.note || '',
+    aiTimestamp: new Date().toISOString(),
+    dwSource: null,
+  };
+  try {
+    const updated = await apiPatch(wine.id, patch);
+    updateInMemory(updated);
+    return { usedAI: true, livello: result.livello };
+  } catch (err) {
+    showToast('❌ Salvataggio fallito: ' + err.message);
+    return { usedAI: false, failed: true, reason: 'save_failed' };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// API MODULE — Tutte le chiamate al Worker
+// Online-only: ogni operazione → server → solo se OK aggiorna in-memory
+// ═══════════════════════════════════════════════════════════
+let connectionStatus = 'unknown'; // 'ok' | 'error' | 'offline' | 'unknown'
+
+function isAPIConfigured() {
+  return !!getAIUrl() && !!getAIToken();
+}
+
+function setConnStatus(s) {
+  connectionStatus = s;
+  const el = document.getElementById('sync-indicator');
+  if (!el) return;
+  const map = {
+    unknown: { dot: '●', color: 'var(--muted)', txt: '—' },
+    ok:      { dot: '●', color: 'var(--green)', txt: 'online' },
+    syncing: { dot: '◐', color: 'var(--amber)', txt: 'sync...' },
+    error:   { dot: '●', color: 'var(--red-warn)', txt: 'errore' },
+    offline: { dot: '●', color: 'var(--red-warn)', txt: 'offline' },
+  };
+  const m = map[s] || map.unknown;
+  el.innerHTML = `<span style="color:${m.color};">${m.dot}</span> <span style="color:var(--muted);font-size:10px;">${m.txt}</span>`;
+}
+
+// Costruisce l'URL completo per un endpoint
+function apiUrl(path) {
+  return getAIUrl() + path;
+}
+
+// Headers di autenticazione
+function apiHeaders(extra = {}) {
+  return {
+    'Authorization': 'Bearer ' + getAIToken(),
+    ...extra,
+  };
+}
+
+// Wrapper generico fetch con gestione errori
+async function apiCall(method, path, body = null, opts = {}) {
+  if (!isAPIConfigured()) {
+    setConnStatus('error');
+    throw new Error('API non configurata: vai in Statistiche → Sincronizzazione + AI');
+  }
+  setConnStatus('syncing');
+  const headers = body ? apiHeaders({ 'Content-Type': 'application/json' }) : apiHeaders();
+  const init = { method, headers };
+  if (body) init.body = JSON.stringify(body);
+  try {
+    const res = await fetch(apiUrl(path), init);
+    if (!res.ok) {
+      setConnStatus('error');
+      const err = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    const data = await res.json();
+    setConnStatus('ok');
+    return data;
+  } catch (err) {
+    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+      setConnStatus('offline');
+      throw new Error('Connessione assente');
+    }
+    setConnStatus('error');
+    throw err;
+  }
+}
+
+// ─── ENDPOINTS ─────────────────────────────────────────────
+async function apiGetAll() {
+  return apiCall('GET', '/db');
+}
+async function apiCreate(wineData) {
+  return apiCall('POST', '/db', wineData);
+}
+async function apiPatch(id, updates) {
+  return apiCall('PATCH', '/db/' + encodeURIComponent(id), updates);
+}
+async function apiDelete(id) {
+  return apiCall('DELETE', '/db/' + encodeURIComponent(id));
+}
+async function apiIncrement(id) {
+  return apiCall('POST', '/db/' + encodeURIComponent(id) + '/increment');
+}
+async function apiDecrement(id) {
+  return apiCall('POST', '/db/' + encodeURIComponent(id) + '/decrement');
+}
+async function apiMarkOut(id) {
+  return apiCall('POST', '/db/' + encodeURIComponent(id) + '/markout');
+}
+async function apiMarkIn(id) {
+  return apiCall('POST', '/db/' + encodeURIComponent(id) + '/markin');
+}
+async function apiSnapshotsList() {
+  return apiCall('GET', '/snapshots');
+}
+async function apiSnapshotGet(date) {
+  return apiCall('GET', '/snapshots/' + encodeURIComponent(date));
+}
+async function apiSnapshotRestore(date) {
+  return apiCall('POST', '/snapshots/' + encodeURIComponent(date) + '/restore');
+}
+
+// Helper: aggiorna l'oggetto vino in-memory dopo che il server l'ha modificato
+function updateInMemory(serverWine) {
+  const idx = wines.findIndex(w => String(w.id) === String(serverWine.id));
+  if (idx === -1) {
+    wines.unshift(serverWine);
+  } else {
+    // Sostituzione completa: il server è source of truth
+    wines[idx] = serverWine;
+  }
+}
+
+// Helper: rimuove vino in-memory dopo delete server
+function removeFromMemory(id) {
+  wines = wines.filter(w => String(w.id) !== String(id));
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// KNOWLEDGE BASE — Vitigni e tipologie
+// ═══════════════════════════════════════════════════════════
+// Per ogni vitigno/tipologia: anni di invecchiamento tipici dalla vendemmia
+// start = da quando è pronto, peak = anno ottimale, end = declino
+const WINE_KB = {
+  // Grandi rossi da invecchiamento
+  'barolo':          { start: 6, peak: 12, end: 25, abb: ['selvaggina', 'brasati', 'formaggi stagionati', 'tartufo'] },
+  'barbaresco':      { start: 5, peak: 10, end: 20, abb: ['arrosti', 'selvaggina', 'formaggi stagionati'] },
+  'brunello':        { start: 5, peak: 12, end: 25, abb: ['bistecca fiorentina', 'cinghiale', 'selvaggina'] },
+  'amarone':         { start: 5, peak: 12, end: 25, abb: ['brasati', 'selvaggina', 'formaggi erborinati'] },
+  'sagrantino':      { start: 6, peak: 12, end: 22, abb: ['agnello', 'selvaggina', 'cinghiale'] },
+  'nebbiolo':        { start: 4, peak: 8, end: 15, abb: ['arrosti', 'agnello', 'formaggi stagionati'] },
+  'gattinara':       { start: 5, peak: 10, end: 18, abb: ['arrosti', 'selvaggina', 'funghi'] },
+  'sforzato':        { start: 6, peak: 12, end: 22, abb: ['brasati', 'selvaggina', 'formaggi stagionati'] },
+  'valtellina':      { start: 3, peak: 7, end: 14, abb: ['pizzoccheri', 'bresaola', 'formaggi alpini'] },
+  'taurasi':         { start: 5, peak: 10, end: 20, abb: ['agnello', 'brasati', 'cinghiale'] },
+  'aglianico':       { start: 5, peak: 10, end: 18, abb: ['agnello', 'selvaggina', 'brasati'] },
+  
+  // Rossi medio-strutturati
+  'ripasso':         { start: 2, peak: 5, end: 10, abb: ['risotto', 'arrosti', 'pasta al ragù'] },
+  'valpolicella superiore': { start: 2, peak: 5, end: 10, abb: ['pasta al ragù', 'arrosti', 'maiale alla brace'] },
+  'valpolicella':    { start: 1, peak: 3, end: 7, abb: ['pizza', 'pasta al pomodoro', 'salumi'] },
+  'recioto':         { start: 3, peak: 8, end: 20, abb: ['pandoro', 'cioccolato', 'formaggi erborinati'] },
+  'bardolino':       { start: 1, peak: 2, end: 5, abb: ['pesce di lago', 'risotto', 'antipasti'] },
+  'chianti':         { start: 2, peak: 6, end: 12, abb: ['bistecca', 'pasta al ragù', 'tagliata'] },
+  'bolgheri':        { start: 3, peak: 8, end: 15, abb: ['bistecca', 'agnello', 'selvaggina'] },
+  'cabernet franc':  { start: 3, peak: 7, end: 14, abb: ['agnello', 'anatra', 'formaggi stagionati'] },
+  'cabernet sauvignon': { start: 3, peak: 8, end: 15, abb: ['bistecca', 'agnello', 'selvaggina'] },
+  'merlot':          { start: 2, peak: 6, end: 12, abb: ['arrosti', 'maiale', 'formaggi stagionati'] },
+  'tintilia':        { start: 3, peak: 7, end: 14, abb: ['agnello', 'capretto', 'formaggi stagionati'] },
+  'pinot nero':      { start: 2, peak: 6, end: 12, abb: ['anatra', 'funghi', 'formaggi molli'] },
+  'barbera':         { start: 2, peak: 5, end: 10, abb: ['pasta al ragù', 'bolliti', 'salumi'] },
+  'buttafuoco':      { start: 2, peak: 6, end: 12, abb: ['brasati', 'stufati', 'pasta al ragù'] },
+  'primitivo':       { start: 2, peak: 5, end: 10, abb: ['agnello', 'selvaggina', 'maiale alla brace'] },
+  'tempranillo':     { start: 3, peak: 7, end: 14, abb: ['tapas', 'agnello', 'prosciutto iberico'] },
+  'rioja':           { start: 3, peak: 8, end: 15, abb: ['agnello', 'maiale alla brace', 'formaggi stagionati'] },
+  'malbec':          { start: 2, peak: 6, end: 12, abb: ['bistecca', 'asado', 'agnello'] },
+  'garnacha':        { start: 2, peak: 5, end: 10, abb: ['salumi', 'stufati', 'formaggi stagionati'] },
+  'saperavi':        { start: 3, peak: 7, end: 14, abb: ['agnello', 'spezzatino', 'stufati'] },
+  'marzemino':       { start: 1, peak: 3, end: 7, abb: ['carni bianche', 'formaggi molli', 'salumi'] },
+  'ruche':           { start: 1, peak: 3, end: 6, abb: ['antipasti', 'pasta', 'carni bianche'] },
+  'sangiovese':      { start: 2, peak: 6, end: 12, abb: ['pasta al ragù', 'arrosti', 'bistecca'] },
+  'canaiolo':        { start: 1, peak: 3, end: 7, abb: ['pasta', 'salumi', 'carni bianche'] },
+  'vespolina':       { start: 1, peak: 3, end: 7, abb: ['risotto', 'salumi', 'formaggi'] },
+  'uva rara':        { start: 1, peak: 3, end: 6, abb: ['antipasti', 'salumi', 'pasta'] },
+  'oseleta':         { start: 3, peak: 7, end: 14, abb: ['brasati', 'selvaggina', 'formaggi stagionati'] },
+  
+  // Bianchi da invecchiamento
+  'riesling':        { start: 1, peak: 5, end: 12, abb: ['pesce', 'sushi', 'asiatico'] },
+  'fiano':           { start: 1, peak: 4, end: 8, abb: ['pesce', 'crostacei', 'carni bianche'] },
+  'verdicchio':      { start: 1, peak: 4, end: 10, abb: ['pesce', 'brodetto', 'frittura di mare'] },
+  'nascetta':        { start: 1, peak: 4, end: 8, abb: ['pesce', 'antipasti', 'formaggi molli'] },
+  'erbaluce':        { start: 1, peak: 3, end: 7, abb: ['formaggi molli', 'aperitivo', 'pesce'] },
+  'chardonnay':      { start: 1, peak: 3, end: 7, abb: ['pesce', 'crostacei', 'formaggi molli'] },
+  'petite arvine':   { start: 1, peak: 3, end: 7, abb: ['formaggi alpini', 'fondue', 'raclette'] },
+  'pigato':          { start: 1, peak: 2, end: 5, abb: ['pesce', 'crostacei', 'pesto'] },
+  'vermentino':      { start: 1, peak: 2, end: 5, abb: ['pesce', 'crostacei', 'insalata di mare'] },
+  'falanghina':      { start: 1, peak: 2, end: 5, abb: ['pesce', 'mozzarella', 'frittura'] },
+  'grechetto':       { start: 1, peak: 2, end: 5, abb: ['pesce', 'antipasti', 'formaggi freschi'] },
+  'torbato':         { start: 1, peak: 3, end: 6, abb: ['pesce', 'crostacei', 'antipasti di mare'] },
+  'grillo':          { start: 1, peak: 2, end: 5, abb: ['pesce', 'couscous', 'crudità'] },
+  'pinot grigio':    { start: 1, peak: 2, end: 4, abb: ['aperitivo', 'pesce', 'antipasti'] },
+  'lugana':          { start: 1, peak: 3, end: 6, abb: ['pesce di lago', 'risotto', 'antipasti'] },
+  
+  // Spumanti
+  'champagne':       { start: 1, peak: 5, end: 15, abb: ['aperitivo', 'ostriche', 'crostacei'] },
+  'franciacorta':    { start: 1, peak: 4, end: 10, abb: ['aperitivo', 'pesce', 'risotto'] },
+  'metodo classico': { start: 1, peak: 4, end: 8, abb: ['aperitivo', 'pesce', 'fritture'] },
+  
+  // Fallback per tipo
+  '_rosso_generic':  { start: 2, peak: 5, end: 10, abb: ['pasta al ragù', 'arrosti', 'salumi'] },
+  '_bianco_generic': { start: 1, peak: 2, end: 5, abb: ['pesce', 'aperitivo', 'antipasti'] },
+  '_spumante_generic': { start: 1, peak: 3, end: 7, abb: ['aperitivo', 'pesce', 'fritture'] },
+  '_rose_generic':   { start: 1, peak: 2, end: 4, abb: ['aperitivo', 'pesce', 'insalate'] },
+};
+
+// Map piatti → categoria per colore tag
+const ABB_CATEGORY = {
+  // meat
+  'agnello': 'meat', 'capretto': 'meat', 'bistecca': 'meat', 'bistecca fiorentina': 'meat',
+  'selvaggina': 'meat', 'cinghiale': 'meat', 'brasati': 'meat', 'arrosti': 'meat',
+  'maiale': 'meat', 'maiale alla brace': 'meat', 'anatra': 'meat', 'tagliata': 'meat',
+  'asado': 'meat', 'prosciutto iberico': 'meat', 'bolliti': 'meat', 'salumi': 'meat',
+  'carni bianche': 'meat', 'spezzatino': 'meat', 'stufati': 'meat', 'bresaola': 'meat',
+  // fish
+  'pesce': 'fish', 'crostacei': 'fish', 'ostriche': 'fish', 'sushi': 'fish',
+  'frittura di mare': 'fish', 'brodetto': 'fish', 'pesce di lago': 'fish',
+  'insalata di mare': 'fish', 'antipasti di mare': 'fish', 'crudità': 'fish',
+  'frittura': 'fish', 'fritture': 'fish', 'couscous': 'fish',
+  // cheese
+  'formaggi stagionati': 'cheese', 'formaggi erborinati': 'cheese', 'formaggi alpini': 'cheese',
+  'formaggi molli': 'cheese', 'formaggi freschi': 'cheese', 'formaggi': 'cheese',
+  'fondue': 'cheese', 'raclette': 'cheese', 'mozzarella': 'cheese',
+  // pasta
+  'pasta al ragù': 'pasta', 'pasta al pomodoro': 'pasta', 'pasta': 'pasta',
+  'risotto': 'pasta', 'pizzoccheri': 'pasta', 'pizza': 'pasta',
+  // veg
+  'funghi': 'veg', 'tartufo': 'veg',
+  // aperitivo
+  'aperitivo': 'aperitivo', 'antipasti': 'aperitivo', 'tapas': 'aperitivo',
+  // dessert
+  'cioccolato': 'dessert', 'pandoro': 'dessert',
+  // asiatico
+  'asiatico': 'fish',
+  // pesto
+  'pesto': 'veg',
+};
+
+// ═══════════════════════════════════════════════════════════
+// KB ENRICHMENT LOGIC
+// ═══════════════════════════════════════════════════════════
+function enrichWine(w) {
+  // BUGFIX v12: i vini arricchiti da AI devono essere preservati — non li sovrascriviamo
+  // con i valori del DB interno quando load() reitera su tutti i vini al boot.
+  if (w.aiEnriched && w.finestraBevuta && w.abbinamenti) return w;
+  if (w.finestraBevuta && w.abbinamenti && w.dwSource) return w; // already enriched from DB
+  const key = findKBKey(w);
+  const fallback = '_' + (w.tipo||'').toLowerCase().split(' ')[0] + '_generic';
+  const actualKey = WINE_KB[key] ? key : (WINE_KB[fallback] ? fallback : '_rosso_generic');
+  const kb = WINE_KB[actualKey];
+  
+  if (w.vendemmia) {
+    w.finestraBevuta = {
+      start: w.vendemmia + kb.start,
+      peak: w.vendemmia + kb.peak,
+      end: w.vendemmia + kb.end,
+    };
+  } else {
+    // No vintage — use now as reference (for NV champagne etc)
+    const now = new Date().getFullYear();
+    w.finestraBevuta = { start: now - 1, peak: now, end: now + 5 };
+  }
+  w.abbinamenti = kb.abb;
+  // Source note: readable profile name, or fallback indicator
+  if (actualKey.startsWith('_')) {
+    w.dwSource = { profile: `generico ${w.tipo || 'vino'}`, isGeneric: true, years: { s: kb.start, p: kb.peak, e: kb.end } };
+  } else {
+    w.dwSource = { profile: actualKey, isGeneric: false, years: { s: kb.start, p: kb.peak, e: kb.end } };
+  }
+  return w;
+}
+
+function findKBKey(w) {
+  const text = (w.bottiglia + ' ' + w.area + ' ' + w.etichetta + ' ' + (w.utilizzo||'')).toLowerCase();
+  // Priority match — longer first
+  const keys = Object.keys(WINE_KB).filter(k => !k.startsWith('_')).sort((a,b) => b.length - a.length);
+  for (const k of keys) {
+    if (text.includes(k)) return k;
+  }
+  // Special cases
+  if (text.includes('champagne') || (w.tipo||'').toLowerCase().includes('spumante')) {
+    if (w.area?.toLowerCase().includes('champagne')) return 'champagne';
+    if (w.area?.toLowerCase().includes('franciacorta')) return 'franciacorta';
+    return 'metodo classico';
+  }
+  return null;
+}
+
+// Drinking window status at a given year
+function getDWStatus(fw, now = new Date().getFullYear()) {
+  if (!fw) return { key: 'unknown', label: '—', progress: 0 };
+  // 1. Giovane: non ancora pronto (prima della finestra)
+  if (now < fw.start) return { key: 'young', label: 'Giovane', progress: Math.max(0, (now - (fw.start - 3)) / 3) };
+  // 2. Pronto: si può bere ma è prima dell'apice
+  if (now >= fw.start && now < fw.peak - 1) return { key: 'ready', label: 'Pronto', progress: (now - fw.start) / (fw.peak - fw.start + 0.1) * 0.5 + 0.25 };
+  // 3. Apice: finestra ottimale
+  if (now >= fw.peak - 1 && now <= fw.peak + 1) return { key: 'peak', label: 'Apice', progress: 0.5 };
+  // 4. Maturo: oltre l'apice ma ancora dentro la finestra
+  if (now > fw.peak + 1 && now <= fw.end) return { key: 'mature', label: 'Maturo', progress: 0.5 + (now - fw.peak) / (fw.end - fw.peak + 0.1) * 0.5 };
+  // 5. Vecchio: oltre la finestra
+  return { key: 'old', label: 'Vecchio', progress: 1 };
+}
+
+// ═══════════════════════════════════════════════════════════
+// SEED DATA
+// ═══════════════════════════════════════════════════════════
+const SEED = [{"id":1,"regione":"Molise","area":"Molise","azienda":"Claudio Cipressi","bottiglia":"Tintilia 66","etichetta":"","vendemmia":2012,"tipo":"Rosso","qtaIniziale":1,"valore":180.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"comprato a circa 60 euro in cantina cipressi","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":2,"regione":"Veneto","area":"Valpolicella","azienda":"Quintarelli","bottiglia":"Amarone della Valpolicella","etichetta":"DOCG","vendemmia":2013,"tipo":"Rosso","qtaIniziale":1,"valore":320.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina (277 euro)","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":3,"regione":"Toscana","area":"Chianti","azienda":"Frescobaldi","bottiglia":"Campone (Brunello)","etichetta":"DOCG","vendemmia":2014,"tipo":"Rosso","qtaIniziale":1,"valore":25.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"Dx2","inStock":true},{"id":4,"regione":"Molise","area":"Molise","azienda":"Di Majo Norante","bottiglia":"Don Luigi","etichetta":"DOP","vendemmia":2016,"tipo":"Rosso","qtaIniziale":2,"valore":30.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"Dx3","inStock":true},{"id":5,"regione":"Lombardia","area":"Oltrepò Pavese","azienda":"Fiamberti","bottiglia":"Vigna Sacca del Prete (Buttafuoco)","etichetta":"","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":32.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"20 euro in cantina","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":6,"regione":"Lombardia","area":"Oltrepò Pavese","azienda":"Fiamberti","bottiglia":"Vigna Solenga (Buttafuoco)","etichetta":"","vendemmia":2016,"tipo":"Rosso","qtaIniziale":2,"valore":41.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"35 euro in cantina","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":7,"regione":"Liguria","area":"Riviera Ponente","azienda":"Rocche del Gatto","bottiglia":"Ntin Crociata","etichetta":"","vendemmia":2016,"tipo":"Bianco","qtaIniziale":3,"valore":22.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx1","inStock":true},{"id":8,"regione":"Spagna","area":"Spagna","azienda":"Las Luceras","bottiglia":"Tempranillo","etichetta":"DO","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":20.0,"riconteggio":1,"conservazione":"Conservato in casa","noteAcquisto":"Regalo Yury","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":9,"regione":"Spagna","area":"Spagna","azienda":"La Villacanda","bottiglia":"Rioja","etichetta":"","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":26.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"Dx2","inStock":true},{"id":10,"regione":"Veneto","area":"Valpantena","azienda":"Torre del Falasco","bottiglia":"Amarone della Valpolicella","etichetta":"DOCG","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":1,"conservazione":"Conservato in casa","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":11,"regione":"Veneto","area":"Valpolicella","azienda":"Albino Armani","bottiglia":"Cuslanus (Amarone Riserva)","etichetta":"DOCG","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":48.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Regalo natale Giacomo","utilizzo":"","quadrante":"Sx6","inStock":true},{"id":12,"regione":"Lombardia","area":"Valtellina","azienda":"Triacca","bottiglia":"Valtellina Superiore","etichetta":"DOCG","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":18.0,"riconteggio":1,"conservazione":"Conservato in casa","noteAcquisto":"Supermercato","utilizzo":"","quadrante":"Sx2","inStock":true},{"id":13,"regione":"Piemonte","area":"Gattinara","azienda":"Il Chiosso","bottiglia":"Gattinara (Nebbiolo)","etichetta":"DOCG","vendemmia":2017,"tipo":"Rosso","qtaIniziale":2,"valore":21.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx5","inStock":true},{"id":14,"regione":"Piemonte","area":"Langhe","azienda":"Massolino","bottiglia":"Barolo","etichetta":"DOCG","vendemmia":2017,"tipo":"Rosso","qtaIniziale":1,"valore":30.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Regalo compleanno Andrea","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":15,"regione":"Piemonte","area":"Langhe","azienda":"La Bioca","bottiglia":"Barolo Ravera","etichetta":"DOCG","vendemmia":2017,"tipo":"Rosso","qtaIniziale":1,"valore":45.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx5","inStock":true},{"id":16,"regione":"Piemonte","area":"Langhe","azienda":"Costa Di Bussia - Luigi Arnulfo","bottiglia":"Barolo Riserva","etichetta":"DOCG","vendemmia":2017,"tipo":"Rosso","qtaIniziale":2,"valore":42.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx4","inStock":true},{"id":17,"regione":"Sicilia","area":"Marsala","azienda":"Fina","bottiglia":"Caro Maestro","etichetta":"","vendemmia":2017,"tipo":"Rosso","qtaIniziale":1,"valore":25.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"Dx2","inStock":true},{"id":18,"regione":"Piemonte","area":"Langhe","azienda":"L'astemia Pentita","bottiglia":"Barbera d'Alba Superiore","etichetta":"DOC","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":14.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Vivino","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":19,"regione":"Piemonte","area":"Langhe","azienda":"Nervo","bottiglia":"Barbaresco","etichetta":"DOCG","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":21.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Supermercato","utilizzo":"","quadrante":"Dx2","inStock":true},{"id":20,"regione":"Piemonte","area":"Langhe","azienda":"La Bioca","bottiglia":"Barolo Aculei","etichetta":"DOCG","vendemmia":2018,"tipo":"Rosso","qtaIniziale":2,"valore":30.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx5","inStock":true},{"id":21,"regione":"Piemonte","area":"Langhe","azienda":"Fontanafredda","bottiglia":"Barolo Serralunga d'Alba","etichetta":"DOCG","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":35.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx2","inStock":true},{"id":22,"regione":"Umbria","area":"Montefalco","azienda":"Arnaldo Caprai","bottiglia":"Valdimaggio (Sagrantino)","etichetta":"DOCG","vendemmia":2018,"tipo":"Rosso","qtaIniziale":2,"valore":28.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx4","inStock":true},{"id":23,"regione":"Veneto","area":"Valpolicella","azienda":"Farina","bottiglia":"Montecorna (Valpolicella Ripasso)","etichetta":"DOCG","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":10.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx2","inStock":true},{"id":24,"regione":"Veneto","area":"Valpolicella","azienda":"Albino Armani","bottiglia":"Amarone della Valpolicella","etichetta":"DOCG","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":32.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Regalo natale Giacomo","utilizzo":"","quadrante":"Sx6","inStock":true},{"id":25,"regione":"Lombardia","area":"Valtenesi","azienda":"Zatti","bottiglia":"Gep (Riesling Renano)","etichetta":"DOC","vendemmia":2018,"tipo":"Bianco","qtaIniziale":1,"valore":15.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx1","inStock":true},{"id":26,"regione":"Toscana","area":"Bolgheri","azienda":"Casa di Terra","bottiglia":"Maronea (Cabernet franc)","etichetta":"DOC","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":40.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx3","inStock":true},{"id":27,"regione":"Toscana","area":"Bolgheri","azienda":"Chiappini","bottiglia":"Guado De Gemoli","etichetta":"DOC","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":60.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx2","inStock":true},{"id":28,"regione":"Piemonte","area":"Gattinara","azienda":"Il Chiosso","bottiglia":"Paglierino (Erbaluce TBV)","etichetta":"DOC","vendemmia":2019,"tipo":"Bianco","qtaIniziale":1,"valore":9.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx5","inStock":true},{"id":29,"regione":"Piemonte","area":"Ghemme","azienda":"Mirù","bottiglia":"Uva Rara","etichetta":"DOC","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":6.5,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx5","inStock":true},{"id":30,"regione":"Molise","area":"Molise","azienda":"Campi Valerio","bottiglia":"Sannazzaro (Rosso Molise)","etichetta":"DOC","vendemmia":2019,"tipo":"Rosso","qtaIniziale":3,"valore":15.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx3","inStock":true},{"id":31,"regione":"Molise","area":"Molise","azienda":"Campi Valerio","bottiglia":"Questo vino non esiste","etichetta":"DOC","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Cefalo 2024","utilizzo":"","quadrante":"Dx3","inStock":true},{"id":32,"regione":"Lombardia","area":"Oltrepò Pavese","azienda":"Monsupello","bottiglia":"Riesling","etichetta":"DOC","vendemmia":2019,"tipo":"Bianco","qtaIniziale":1,"valore":10.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx5","inStock":true},{"id":33,"regione":"Liguria","area":"Riviera Ponente","azienda":"Rocche del Gatto","bottiglia":"Vermentino","etichetta":"","vendemmia":2019,"tipo":"Bianco","qtaIniziale":1,"valore":15.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx1","inStock":true},{"id":34,"regione":"Liguria","area":"Riviera Ponente","azienda":"Rocche del Gatto","bottiglia":"Senza Tempo","etichetta":"","vendemmia":2019,"tipo":"Bianco","qtaIniziale":2,"valore":20.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx1","inStock":true},{"id":35,"regione":"Valle d'Aosta","area":"Valle d'Aosta","azienda":"Cave de Donnas","bottiglia":"Donnas","etichetta":"DOC","vendemmia":2019,"tipo":"Bianco","qtaIniziale":1,"valore":19.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato a Donnas","utilizzo":"","quadrante":"Sx3","inStock":true},{"id":36,"regione":"Lazio","area":"Viterbo","azienda":"Le Lase","bottiglia":"Cautha (Cab Sauv e Petit Verdot)","etichetta":"IGP","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx2","inStock":true},{"id":37,"regione":"Argentina","area":"Argentina","azienda":"Domanine Busquet","bottiglia":"Malbec","etichetta":"","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":12.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"FISAR","utilizzo":"","quadrante":"Dx1","inStock":true},{"id":38,"regione":"Toscana","area":"Bolgheri","azienda":"Chiappini","bottiglia":"Ferruggini","etichetta":"DOC","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx2","inStock":true},{"id":39,"regione":"Toscana","area":"Bolgheri","azienda":"Donna Olimpia 1898","bottiglia":"Bolgheri (Rosso)","etichetta":"DOC","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx2","inStock":true},{"id":40,"regione":"Toscana","area":"Bolgheri","azienda":"Podere 7","bottiglia":"L'Invidio","etichetta":"DOC","vendemmia":2020,"tipo":"Rosso","qtaIniziale":3,"valore":17.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx4","inStock":true},{"id":41,"regione":"Toscana","area":"Bolgheri","azienda":"Chiappini","bottiglia":"Felciaino","etichetta":"DOC","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":20.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx2","inStock":true},{"id":42,"regione":"Toscana","area":"Bolgheri","azienda":"Ornellaia","bottiglia":"Le Volte dell'Ornellaia","etichetta":"","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":20.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"regalo Max Bet","utilizzo":"","quadrante":"Dx2","inStock":true},{"id":43,"regione":"Piemonte","area":"Langhe","azienda":"La Bioca","bottiglia":"Nebbiolo Sterma","etichetta":"DOC","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":19.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx5","inStock":true},{"id":44,"regione":"Piemonte","area":"Langhe","azienda":"La Bioca","bottiglia":"Chardonnay Vigna Bussia","etichetta":"DOC","vendemmia":2020,"tipo":"Bianco","qtaIniziale":2,"valore":24.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx5","inStock":true},{"id":45,"regione":"Piemonte","area":"Langhe","azienda":"Costa Di Bussia - Luigi Arnulfo","bottiglia":"Barolo Bussia","etichetta":"DOCG","vendemmia":2020,"tipo":"Rosso","qtaIniziale":2,"valore":34.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx4","inStock":true},{"id":46,"regione":"Piemonte","area":"Langhe","azienda":"Trediberri","bottiglia":"Barolo Berri","etichetta":"DOCG","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":42.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx4","inStock":true},{"id":47,"regione":"Piemonte","area":"Langhe","azienda":"Mauro Veglio","bottiglia":"Barolo","etichetta":"DOCG","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":30.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx4","inStock":true},{"id":48,"regione":"Piemonte","area":"Langhe","azienda":"Crissante","bottiglia":"Barolo del comune di La Morra","etichetta":"DOCG","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":38.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx4","inStock":true},{"id":49,"regione":"Molise","area":"Molise","azienda":"Campi Valerio","bottiglia":"Opalia (Tintilia)","etichetta":"DOC","vendemmia":2020,"tipo":"Rosso","qtaIniziale":2,"valore":19.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx3","inStock":true},{"id":50,"regione":"Molise","area":"Molise","azienda":"Herero","bottiglia":"San Mercurio (Tintilia)","etichetta":"DOC","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":16.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Cefalo 2024","utilizzo":"","quadrante":"Dx3","inStock":true},{"id":51,"regione":"Lombardia","area":"Oltrepò Pavese","azienda":"Monsupello","bottiglia":"Senso","etichetta":"","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":21.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx5","inStock":true},{"id":52,"regione":"Toscana","area":"Bolgheri","azienda":"Tenuta San Guido","bottiglia":"Le Difese","etichetta":"","vendemmia":2021,"tipo":"Rosso","qtaIniziale":2,"valore":24.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"Dx2","inStock":true},{"id":53,"regione":"Piemonte","area":"Ghemme","azienda":"Mirù","bottiglia":"Vespolina","etichetta":"DOC","vendemmia":2021,"tipo":"Rosso","qtaIniziale":1,"valore":9.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx5","inStock":true},{"id":54,"regione":"Piemonte","area":"Langhe","azienda":"Costa Di Bussia - Luigi Arnulfo","bottiglia":"Nebbiolo Langhe","etichetta":"DOC","vendemmia":2021,"tipo":"Rosso","qtaIniziale":2,"valore":19.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx4","inStock":true},{"id":55,"regione":"Veneto","area":"Valpolicella","azienda":"Albino Armani","bottiglia":"Valpolicella","etichetta":"DOC","vendemmia":2021,"tipo":"Rosso","qtaIniziale":2,"valore":13.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Regalo natale Giacomo","utilizzo":"","quadrante":"Sx6","inStock":true},{"id":56,"regione":"Veneto","area":"Valpolicella","azienda":"Albino Armani","bottiglia":"Valpolicella Ripasso","etichetta":"DOC","vendemmia":2021,"tipo":"Rosso","qtaIniziale":2,"valore":17.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Regalo natale Giacomo","utilizzo":"","quadrante":"Sx6","inStock":true},{"id":57,"regione":"Veneto","area":"Valpolicella","azienda":"Albino Armani","bottiglia":"Recioto","etichetta":"DOCG","vendemmia":2021,"tipo":"Rosso","qtaIniziale":1,"valore":26.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Regalo natale Giacomo","utilizzo":"","quadrante":"Sx6","inStock":true},{"id":58,"regione":"Piemonte","area":"Langhe","azienda":"Stroppiana","bottiglia":"Nascetta Langhe Robinia","etichetta":"DOCG","vendemmia":2022,"tipo":"Bianco","qtaIniziale":1,"valore":18.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx4","inStock":true},{"id":59,"regione":"Piemonte","area":"Langhe","azienda":"Stroppiana","bottiglia":"Nascetta Langhe","etichetta":"DOCG","vendemmia":2022,"tipo":"Bianco","qtaIniziale":1,"valore":15.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx4","inStock":true},{"id":60,"regione":"Sardegna","area":"Oristano","azienda":"Contini","bottiglia":"Maluentu (Tharros)","etichetta":"IGT","vendemmia":2022,"tipo":"Rosso","qtaIniziale":1,"valore":10.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Comprato supermark 2024","utilizzo":"","quadrante":"Sx2","inStock":true},{"id":61,"regione":"Trentino","area":"Trentino","azienda":"Pfitscher","bottiglia":"Pinot Nero Fuxleiten","etichetta":"","vendemmia":2022,"tipo":"Rosso","qtaIniziale":3,"valore":21.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx4","inStock":true},{"id":62,"regione":"Trentino","area":"Trentino","azienda":"Kaltern","bottiglia":"Kalterersee","etichetta":"DOC","vendemmia":2023,"tipo":"Rosso","qtaIniziale":1,"valore":9.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Dx4","inStock":true},{"id":63,"regione":"Lombardia","area":"Oltrepò Pavese","azienda":"Monsupello","bottiglia":"Nature Metodo Classico","etichetta":"","vendemmia":null,"tipo":"Bianco Spumante","qtaIniziale":1,"valore":22.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx5","inStock":true},{"id":64,"regione":"Veneto","area":"Valpolicella","azienda":"Guerrieri RIzzardi","bottiglia":"Pojega (Valpolicella Ripasso)","etichetta":"DOC","vendemmia":2023,"tipo":"Rosso","qtaIniziale":1,"valore":17.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Comprato in cantina nel 2025","utilizzo":"","quadrante":"Dx6","inStock":true},{"id":65,"regione":"Veneto","area":"Valpolicella","azienda":"Guerrieri RIzzardi","bottiglia":"Amarone della Valpolicella Villa Rizzardi","etichetta":"DOCG","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":50.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Comprato in cantina nel 2025","utilizzo":"","quadrante":"Dx6","inStock":true},{"id":66,"regione":"Veneto","area":"Bardolino","azienda":"Guerrieri RIzzardi","bottiglia":"Bardolino Cuvee XV","etichetta":"DOC","vendemmia":2023,"tipo":"Rosso","qtaIniziale":2,"valore":9.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Comprato in cantina nel 2025","utilizzo":"","quadrante":"Dx6","inStock":true},{"id":67,"regione":"Veneto","area":"Bardolino","azienda":"Guerrieri RIzzardi","bottiglia":"Bardolino Delara","etichetta":"","vendemmia":2022,"tipo":"Rosso","qtaIniziale":1,"valore":12.0,"riconteggio":1,"conservazione":"Conservato in cantina","noteAcquisto":"Comprato in cantina nel 2025","utilizzo":"","quadrante":"Dx6","inStock":true},{"id":68,"regione":"Molise","area":"Molise","azienda":"Campi Valerio","bottiglia":"Opalia (Tintilia Bianco)","etichetta":"","vendemmia":2025,"tipo":"Bianco","qtaIniziale":2,"valore":14.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx3","inStock":true},{"id":69,"regione":"Molise","area":"Molise","azienda":"Campi Valerio","bottiglia":"Per una rosa","etichetta":"","vendemmia":2025,"tipo":"Rosè","qtaIniziale":2,"valore":13.0,"riconteggio":2,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"Sx3","inStock":true},{"id":70,"regione":"Campania","area":"Irpinia","azienda":"Vigne Verginianae","bottiglia":"Fiano di Avellino","etichetta":"DOCG","vendemmia":2021,"tipo":"Bianco","qtaIniziale":1,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Supermercato","utilizzo":"","quadrante":"","inStock":false},{"id":71,"regione":"Friuli","area":"Collio","azienda":"Fantinel, Tenuta Sant'Helena","bottiglia":"Collio (Pinot Grigio)","etichetta":"DOC","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Supermercato","utilizzo":"","quadrante":"","inStock":false},{"id":72,"regione":"Sardegna","area":"Alghero","azienda":"Sella e Mosca","bottiglia":"Terre Bianche Cuvee 161 (Torbato)","etichetta":"DOC","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":11.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Vivino","utilizzo":"","quadrante":"","inStock":false},{"id":73,"regione":"Campania","area":"Vesuvio","azienda":"Feudi di San Gregorio","bottiglia":"Lacryma Christi Bianco","etichetta":"DOC","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Supermercato","utilizzo":"","quadrante":"","inStock":false},{"id":74,"regione":"Campania","area":"Irpinia","azienda":"Feudi di San Gregorio","bottiglia":"Sirica","etichetta":"IGT","vendemmia":2015,"tipo":"Rosso","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in casa","noteAcquisto":"Supermercato","utilizzo":"","quadrante":"","inStock":false},{"id":75,"regione":"Puglia","area":"Salento","azienda":"Cantele","bottiglia":"Teresa Manara (Chardonnay)","etichetta":"IGT","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Vivino","utilizzo":"","quadrante":"","inStock":false},{"id":76,"regione":"Puglia","area":"Salento","azienda":"Masseria Ficarigna","bottiglia":"Primitivo di Manduria Riserva","etichetta":"DOC","vendemmia":2017,"tipo":"Rosso","qtaIniziale":1,"valore":10.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Vivino","utilizzo":"","quadrante":"","inStock":false},{"id":77,"regione":"Piemonte","area":"Gattinara","azienda":"Il Chiosso","bottiglia":"Nebbiolo","etichetta":"DOC","vendemmia":2015,"tipo":"Rosso","qtaIniziale":1,"valore":14.0,"riconteggio":0,"conservazione":"Conservato in casa","noteAcquisto":"FISAR","utilizzo":"","quadrante":"","inStock":false},{"id":78,"regione":"Piemonte","area":"Monferrato","azienda":"Montalbera","bottiglia":"Ruche'","etichetta":"DOCG","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in casa","noteAcquisto":"Vivino","utilizzo":"","quadrante":"","inStock":false},{"id":79,"regione":"Lombardia","area":"Franciacorta","azienda":"Cà dei Frati","bottiglia":"Lugana","etichetta":"DOC","vendemmia":2021,"tipo":"Bianco","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Supermercato","utilizzo":"easy","quadrante":"","inStock":false},{"id":80,"regione":"Lombardia","area":"Francacorta","azienda":"Contadi Castaldi","bottiglia":"Brut","etichetta":"DOCG","vendemmia":2021,"tipo":"Bianco","qtaIniziale":1,"valore":16.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Supermercato","utilizzo":"easy","quadrante":"","inStock":false},{"id":81,"regione":"Lombardia","area":"Franciacorta","azienda":"Castel Faglia","bottiglia":"Franciacorta Brut Magnum","etichetta":"DOCG","vendemmia":null,"tipo":"Bianco","qtaIniziale":1,"valore":25.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Supermercato","utilizzo":"easy","quadrante":"","inStock":false},{"id":82,"regione":"Lombardia","area":"Valtenesi","azienda":"Zatti","bottiglia":"Primanotte (Chiaretto)","etichetta":"DOC","vendemmia":2021,"tipo":"Rosè","qtaIniziale":1,"valore":11.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"aperitivo","quadrante":"","inStock":false},{"id":83,"regione":"Lombardia","area":"Valtenesi","azienda":"Zatti","bottiglia":"Gibo (Marzemino)","etichetta":"DOC","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":14.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":84,"regione":"Lazio","area":"Viterbo","azienda":"Le Lase","bottiglia":"Zefiro (Incrocio Manzoni)","etichetta":"IGP","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"daily use","quadrante":"","inStock":false},{"id":85,"regione":"Veneto","area":"Valpolicella","azienda":"Rocca Alata","bottiglia":"Amarone della Valpolicella","etichetta":"DOCG","vendemmia":2017,"tipo":"Rosso","qtaIniziale":1,"valore":10.0,"riconteggio":0,"conservazione":"Conservato in casa","noteAcquisto":"Supermercato","utilizzo":"","quadrante":"","inStock":false},{"id":86,"regione":"Veneto","area":"Valpolicella","azienda":"Tenuta Santa Maria","bottiglia":"Pragal (Verona Rosso)","etichetta":"IGT","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":10.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Vivino","utilizzo":"","quadrante":"","inStock":false},{"id":87,"regione":"Veneto","area":"Valpolicella","azienda":"Tommasi","bottiglia":"Valpolicella Ripasso","etichetta":"DOC","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in casa","noteAcquisto":"Regalo Roche","utilizzo":"","quadrante":"","inStock":false},{"id":88,"regione":"Veneto","area":"Valpolicella","azienda":"Allegrini","bottiglia":"Valpolicella Superiore","etichetta":"DOC","vendemmia":2019,"tipo":"Rosso","qtaIniziale":2,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":89,"regione":"Veneto","area":"Valpantena","azienda":"Torre del Falasco","bottiglia":"Lugana","etichetta":"DOC","vendemmia":2020,"tipo":"Bianco","qtaIniziale":5,"valore":6.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"daily use","quadrante":"","inStock":false},{"id":90,"regione":"Veneto","area":"Valpantena","azienda":"Torre del Falasco","bottiglia":"Ritocco (Valpolicella Ripasso)","etichetta":"DOC","vendemmia":2019,"tipo":"Rosso","qtaIniziale":4,"valore":8.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"daily use","quadrante":"","inStock":false},{"id":91,"regione":"Emilia Romagna","area":"Emilia Romagna","azienda":"AleAugust","bottiglia":"Sangiovese Superiore Cru","etichetta":"IGT","vendemmia":null,"tipo":"Rosso","qtaIniziale":1,"valore":20.0,"riconteggio":0,"conservazione":"Conservato in casa","noteAcquisto":"Regalo da Vale","utilizzo":"","quadrante":"","inStock":false},{"id":92,"regione":"Sicilia","area":"Mazara del Vallo","azienda":"Gorghi Tondi","bottiglia":"Kheirè (Grillo Bio)","etichetta":"DOC","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"elegante","quadrante":"","inStock":false},{"id":93,"regione":"Spagna","area":"Spagna","azienda":"Bodegas Muga","bottiglia":"Muga Rioja","etichetta":"DOCa","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":20.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Regalo da Inaki","utilizzo":"","quadrante":"","inStock":false},{"id":94,"regione":"Spagna","area":"Spagna","azienda":"Borsao","bottiglia":"Tres Picos (Garnacha)","etichetta":"DO","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Vivino","utilizzo":"","quadrante":"","inStock":false},{"id":95,"regione":"Marche","area":"Osimo","azienda":"Umani Ronchi","bottiglia":"Plenio (Verdicchio CDJ Riserva)","etichetta":"DOCG","vendemmia":2018,"tipo":"Bianco","qtaIniziale":1,"valore":18.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"elegante","quadrante":"","inStock":false},{"id":96,"regione":"Francia","area":"Champagne","azienda":"Lucien Roguet","bottiglia":"ExtraBrut N3","etichetta":"","vendemmia":null,"tipo":"Bianco Spumante","qtaIniziale":1,"valore":35.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Parisi 2023","utilizzo":"","quadrante":"","inStock":false},{"id":97,"regione":"Veneto","area":"Valpolicella","azienda":"Masi","bottiglia":"Costasera","etichetta":"DOCG","vendemmia":2013,"tipo":"Rosso","qtaIniziale":1,"valore":45.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"","inStock":false},{"id":98,"regione":"Francia","area":"Champagne","azienda":"Pierson Cuvelier","bottiglia":"Brut Nature","etichetta":"","vendemmia":null,"tipo":"Bianco Spumante","qtaIniziale":1,"valore":28.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Parisi 2023","utilizzo":"","quadrante":"","inStock":false},{"id":99,"regione":"Campania","area":"Irpinia","azienda":"Feudi di San Gregorio","bottiglia":"Falanghina Brut","etichetta":"","vendemmia":null,"tipo":"Bianco Spumante","qtaIniziale":1,"valore":11.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"","inStock":false},{"id":100,"regione":"Piemonte","area":"Langhe","azienda":"460 casina bric","bottiglia":"Cuvee 970","etichetta":"DOC","vendemmia":2019,"tipo":"Rose Spumante","qtaIniziale":1,"valore":21.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":101,"regione":"Lombardia","area":"Oltrepò Pavese","azienda":"Monsupello","bottiglia":"Mosaico Rosso Riserva","etichetta":"DOC","vendemmia":2008,"tipo":"Rosso","qtaIniziale":3,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":102,"regione":"Veneto","area":"Valpolicella","azienda":"Zyme","bottiglia":"Oseleta","etichetta":"IGP","vendemmia":2011,"tipo":"Rosso","qtaIniziale":1,"valore":55.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":103,"regione":"Piemonte","area":"Gattinara","azienda":"Il Chiosso","bottiglia":"Gattinara Galizja (Nebbiolo CRU)","etichetta":"DOCG","vendemmia":2013,"tipo":"Rosso","qtaIniziale":1,"valore":28.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"molto tannico, da maturare","quadrante":"","inStock":false},{"id":104,"regione":"Piemonte","area":"Langhe","azienda":"460 casina bric","bottiglia":"Rose Brut Nature Magnum","etichetta":"","vendemmia":2019,"tipo":"Rose Spumante","qtaIniziale":1,"valore":80.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":105,"regione":"Umbria","area":"Montefalco","azienda":"Arnaldo Caprai","bottiglia":"Grecante (Grechetto)","etichetta":"DOC","vendemmia":2021,"tipo":"Bianco","qtaIniziale":2,"valore":10.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":106,"regione":"Liguria","area":"Riviera Ponente","azienda":"Rocche del Gatto","bottiglia":"Pigato","etichetta":"","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":107,"regione":"Trentino","area":"Bolzano","azienda":"Kellerei","bottiglia":"Laven","etichetta":"","vendemmia":2020,"tipo":"Bianco","qtaIniziale":1,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina by Zeno","utilizzo":"","quadrante":"","inStock":false},{"id":108,"regione":"Valle d'Aosta","area":"Valle d'Aosta","azienda":"Cave Onze Communes","bottiglia":"Petite Arvine","etichetta":"","vendemmia":2021,"tipo":"Bianco","qtaIniziale":1,"valore":13.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato a Donnas","utilizzo":"","quadrante":"","inStock":false},{"id":109,"regione":"Lazio","area":"Viterbo","azienda":"Le Lase","bottiglia":"Fiamma (Merlot)","etichetta":"IGP","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":11.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"daily use","quadrante":"","inStock":false},{"id":110,"regione":"Molise","area":"Molise","azienda":"Angelo D'Uva","bottiglia":"Opico (Merlot)","etichetta":"","vendemmia":2017,"tipo":"Rosso","qtaIniziale":1,"valore":10.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":111,"regione":"Molise","area":"Molise","azienda":"Angelo D'Uva","bottiglia":"Console Vibio (Rosso Molise Riserva)","etichetta":"DOC","vendemmia":2014,"tipo":"Rosso","qtaIniziale":1,"valore":19.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":112,"regione":"Molise","area":"Molise","azienda":"Angelo D'Uva","bottiglia":"Gavio (Cabernet Sauvignon)","etichetta":"","vendemmia":2018,"tipo":"Rosso","qtaIniziale":2,"valore":10.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":113,"regione":"Molise","area":"Molise","azienda":"Angelo D'Uva","bottiglia":"Kantharos (Biferno Bianco)","etichetta":"DOC","vendemmia":2021,"tipo":"Bianco","qtaIniziale":2,"valore":9.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":114,"regione":"Trentino","area":"Bolzano","azienda":"Kellerei","bottiglia":"Dellago","etichetta":"","vendemmia":2021,"tipo":"Bianco","qtaIniziale":1,"valore":16.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina by Zeno","utilizzo":"","quadrante":"","inStock":false},{"id":115,"regione":"Valle d'Aosta","area":"Valle d'Aosta","azienda":"Cave Mont Blanc","bottiglia":"Bianco dei Ghiacci","etichetta":"","vendemmia":2021,"tipo":"Bianco","qtaIniziale":1,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato a Donnas","utilizzo":"","quadrante":"","inStock":false},{"id":116,"regione":"Francia","area":"Champagne","azienda":"Francois Chaumont","bottiglia":"Rose Brut","etichetta":"","vendemmia":null,"tipo":"Bianco Spumante","qtaIniziale":1,"valore":32.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Parisi 2023","utilizzo":"","quadrante":"","inStock":false},{"id":117,"regione":"Toscana","area":"Chianti","azienda":"Tenuta del Buonamico","bottiglia":"Vasario","etichetta":"IGT","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":30.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":118,"regione":"Lombardia","area":"Franciacorta","azienda":"Faccoli","bottiglia":"Franciacorta Rosè Brut","etichetta":"DOCG","vendemmia":2021,"tipo":"Rosè","qtaIniziale":1,"valore":20.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"elegante","quadrante":"","inStock":false},{"id":119,"regione":"Spagna","area":"Spagna","azienda":"Ramon Bilbao","bottiglia":"Rioja","etichetta":"","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"","inStock":false},{"id":120,"regione":"Marche","area":"Osimo","azienda":"Umani Ronchi","bottiglia":"Cumaro","etichetta":"DOCG","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":18.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"","inStock":false},{"id":121,"regione":"Veneto","area":"Valpolicella","azienda":"Farina","bottiglia":"Nodo D'Amore (Rosso Trevenezie)","etichetta":"IGT","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":122,"regione":"Lazio","area":"Viterbo","azienda":"Le Lase","bottiglia":"Satres (Pinot Grigio)","etichetta":"IGP","vendemmia":2021,"tipo":"Rosè","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":123,"regione":"Lombardia","area":"Valtellina","azienda":"La Perla","bottiglia":"Quattro Soli (Sforzato)","etichetta":"DOCG","vendemmia":2013,"tipo":"Rosso","qtaIniziale":1,"valore":39.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":124,"regione":"Umbria","area":"Montefalco","azienda":"Arnaldo Caprai","bottiglia":"Montefalco","etichetta":"DOC","vendemmia":2019,"tipo":"Rosso","qtaIniziale":1,"valore":12.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"","inStock":false},{"id":125,"regione":"Toscana","area":"Bolgheri","azienda":"Donna Olimpia 1898","bottiglia":"Bolgheri (Rosè)","etichetta":"DOC","vendemmia":2021,"tipo":"Rosso","qtaIniziale":1,"valore":13.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":126,"regione":"Toscana","area":"Bolgheri","azienda":"Casa di Terra","bottiglia":"Moreccio","etichetta":"DOC","vendemmia":2020,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":127,"regione":"Francia","area":"Champagne","azienda":"Francois Chaumont","bottiglia":"BdB Millesime","etichetta":"","vendemmia":null,"tipo":"Bianco Spumante","qtaIniziale":1,"valore":34.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Parisi 2023","utilizzo":"","quadrante":"","inStock":false},{"id":128,"regione":"Francia","area":"Champagne","azienda":"Miniere F&R","bottiglia":"Blanc Absolu","etichetta":"","vendemmia":null,"tipo":"Bianco Spumante","qtaIniziale":1,"valore":41.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Parisi 2023","utilizzo":"","quadrante":"","inStock":false},{"id":129,"regione":"Veneto","area":"Bardolino","azienda":"Guerrieri RIzzardi","bottiglia":"Keya (Chiaretto Bardolino)","etichetta":"","vendemmia":2024,"tipo":"Rosè","qtaIniziale":1,"valore":11.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Comprato in cantina nel 2025","utilizzo":"","quadrante":"","inStock":false},{"id":130,"regione":"Toscana","area":"Bolgheri","azienda":"Chiappini","bottiglia":"Le Grottine","etichetta":"DOC","vendemmia":2021,"tipo":"Bianco","qtaIniziale":2,"valore":14.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":131,"regione":"Lombardia","area":"Oltrepò Pavese","azienda":"Monsupello","bottiglia":"Aplomb (Carbenet Sauvignon)","etichetta":"DOC","vendemmia":2017,"tipo":"Rosso","qtaIniziale":1,"valore":15.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":132,"regione":"Lazio","area":"Viterbo","azienda":"Le Lase","bottiglia":"Thesan (Canaiolo Nero)","etichetta":"IGP","vendemmia":2016,"tipo":"Rosso","qtaIniziale":2,"valore":18.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":133,"regione":"Toscana","area":"Chianti","azienda":"Poggio Nicchiaia","bottiglia":"Filetto (Chianti Superiore)","etichetta":"DOCG","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":8.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Comprato Elisa","utilizzo":"","quadrante":"","inStock":false},{"id":134,"regione":"Campania","area":"Irpinia","azienda":"Feudi di San Gregorio","bottiglia":"Taurasi","etichetta":"DOCG","vendemmia":2016,"tipo":"Rosso","qtaIniziale":1,"valore":18.0,"riconteggio":0,"conservazione":"Conservato in casa","noteAcquisto":"Vivino","utilizzo":"","quadrante":"","inStock":false},{"id":135,"regione":"Umbria","area":"Montefalco","azienda":"Arnaldo Caprai","bottiglia":"Collepiano (Sagrantino)","etichetta":"DOCG","vendemmia":2015,"tipo":"Rosso","qtaIniziale":1,"valore":30.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false},{"id":136,"regione":"Azerbaijan","area":"Azerbaijan","azienda":"Karabakh","bottiglia":"Saperavi","etichetta":"","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":10.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Regalo Yury","utilizzo":"","quadrante":"","inStock":false},{"id":137,"regione":"Toscana","area":"Chianti","azienda":"Tenuta del Buonamico","bottiglia":"Cercatoja","etichetta":"IGT","vendemmia":2018,"tipo":"Rosso","qtaIniziale":1,"valore":40.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"","utilizzo":"","quadrante":"","inStock":false},{"id":138,"regione":"Lombardia","area":"Valtellina","azienda":"La Perla","bottiglia":"Riserva Elisa (Valtellina Superiore)","etichetta":"DOCG","vendemmia":2014,"tipo":"Rosso","qtaIniziale":2,"valore":25.0,"riconteggio":0,"conservazione":"Conservato in cantina","noteAcquisto":"Acquistato in cantina","utilizzo":"","quadrante":"","inStock":false}];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let wines = [];
+let currentTab = 'stock';
+let filters = { tipo: new Set(), regione: new Set(), etichetta: new Set(), quadrante: new Set(), dw: new Set(), abb: new Set(), yearFrom:'', yearTo:'', priceFrom:'', priceTo:'', search:'' };
+
+// load(): carica i vini dal server. Online-only: nessuna fonte locale.
+async function load() {
+  if (!isAPIConfigured()) {
+    wines = [];
+    return false;
+  }
+  try {
+    const data = await apiGetAll();
+    wines = data.wines || [];
+    // Per i vini senza finestraBevuta/abbinamenti (es. seed iniziale, AI non ancora arrivata),
+    // calcola fallback da DB interno solo in-memory. Non si persiste.
+    wines.forEach(w => {
+      if (!w.finestraBevuta || !w.abbinamenti) enrichWine(w);
+    });
+    return true;
+  } catch (err) {
+    console.error('load failed:', err);
+    return false;
+  }
+}
+
+// save(): no-op. Online-only: ogni modifica passa direttamente per le funzioni API.
+// Lasciato qui solo per backwards-compatibility nel caso qualche path dimenticato lo chiami.
+function save() {
+  // intentionally empty
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTERS
+// ═══════════════════════════════════════════════════════════
+function buildFilterPanels() {
+  buildCheckGroup('filter-tipo', 'tipo');
+  buildCheckGroup('filter-regione', 'regione');
+  buildCheckGroup('filter-etichetta', 'etichetta', v => v && v !== '');
+  buildCheckGroup('filter-quadrante', 'quadrante', v => v && v !== '');
+  buildDWFilter();
+  buildAbbFilter();
+}
+
+function buildCheckGroup(containerId, field, filterFn = () => true) {
+  const counts = {};
+  wines.filter(w => !w.deletedAt).forEach(w => { if (filterFn(w[field])) counts[w[field]] = (counts[w[field]]||0)+1; });
+  const items = Object.entries(counts).sort((a,b) => {
+    // Natural sort for quadrante (Sx1, Sx2... Dx1, Dx2...)
+    if (field === 'quadrante') return a[0].localeCompare(b[0], undefined, { numeric: true });
+    return b[1] - a[1];
+  });
+  document.getElementById(containerId).innerHTML = items.map(([val, cnt]) => `
+    <label class="fcheck">
+      <input type="checkbox" data-field="${field}" data-val="${val}" onchange="onCheck('${field}','${val}',this.checked)">
+      <div class="fcheck-box"></div>
+      <span>${val || '—'}</span>
+      <span class="fcheck-cnt">${cnt}</span>
+    </label>`).join('');
+}
+
+function buildDWFilter() {
+  const opts = [
+    { key: 'young', lbl: '🟠 Giovane' },
+    { key: 'ready', lbl: '🟡 Pronto' },
+    { key: 'peak', lbl: '🟢 Apice' },
+    { key: 'mature', lbl: '🔵 Maturo' },
+    { key: 'old', lbl: '🔴 Vecchio' },
+  ];
+  const counts = {};
+  const now = new Date().getFullYear();
+  wines.filter(w => !w.deletedAt).forEach(w => {
+    const s = getDWStatus(w.finestraBevuta, now);
+    counts[s.key] = (counts[s.key]||0)+1;
+  });
+  document.getElementById('filter-dw').innerHTML = opts.map(o => `
+    <label class="fcheck">
+      <input type="checkbox" data-field="dw" data-val="${o.key}" onchange="onCheck('dw','${o.key}',this.checked)">
+      <div class="fcheck-box"></div>
+      <span>${o.lbl}</span>
+      <span class="fcheck-cnt">${counts[o.key]||0}</span>
+    </label>`).join('');
+}
+
+function buildAbbFilter() {
+  const counts = {};
+  wines.filter(w => !w.deletedAt).forEach(w => { (w.abbinamenti||[]).forEach(a => counts[a] = (counts[a]||0)+1); });
+  const items = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 20);
+  document.getElementById('filter-abb').innerHTML = items.map(([val, cnt]) => `
+    <label class="fcheck">
+      <input type="checkbox" data-field="abb" data-val="${val}" onchange="onCheck('abb','${val}',this.checked)">
+      <div class="fcheck-box"></div>
+      <span>${val}</span>
+      <span class="fcheck-cnt">${cnt}</span>
+    </label>`).join('');
+}
+
+function onCheck(field, val, checked) {
+  if (checked) filters[field].add(val);
+  else filters[field].delete(val);
+  applyFilters();
+}
+
+function applyFilters() {
+  filters.search = document.getElementById('searchInput').value.toLowerCase();
+  filters.yearFrom = document.getElementById('yearFrom').value;
+  filters.yearTo = document.getElementById('yearTo').value;
+  filters.priceFrom = document.getElementById('priceFrom').value;
+  filters.priceTo = document.getElementById('priceTo').value;
+  render();
+  updateActiveFilters();
+}
+
+function getFiltered() {
+  let list = wines.filter(w => !w.deletedAt); // soft-delete: skip wines marked as deleted
+  if (currentTab === 'stock') list = list.filter(w => w.inStock);
+  else if (currentTab === 'storico') list = list.filter(w => !w.inStock);
+  if (filters.tipo.size) list = list.filter(w => filters.tipo.has(w.tipo));
+  if (filters.regione.size) list = list.filter(w => filters.regione.has(w.regione));
+  if (filters.etichetta.size) list = list.filter(w => filters.etichetta.has(w.etichetta));
+  if (filters.quadrante.size) list = list.filter(w => filters.quadrante.has(w.quadrante));
+  if (filters.abb.size) list = list.filter(w => (w.abbinamenti||[]).some(a => filters.abb.has(a)));
+  if (filters.dw.size) {
+    const now = new Date().getFullYear();
+    list = list.filter(w => filters.dw.has(getDWStatus(w.finestraBevuta, now).key));
+  }
+  if (filters.yearFrom) list = list.filter(w => w.vendemmia >= parseInt(filters.yearFrom));
+  if (filters.yearTo) list = list.filter(w => w.vendemmia <= parseInt(filters.yearTo));
+  if (filters.priceFrom) list = list.filter(w => w.valore >= parseFloat(filters.priceFrom));
+  if (filters.priceTo) list = list.filter(w => w.valore <= parseFloat(filters.priceTo));
+  if (filters.search) {
+    const q = filters.search;
+    list = list.filter(w => [w.bottiglia, w.azienda, w.regione, w.area, w.etichetta, w.utilizzo, w.noteAcquisto, w.quadrante, ...(w.abbinamenti||[])].join(' ').toLowerCase().includes(q));
+  }
+  // Sort
+  const [sk, sd] = (document.getElementById('sortSelect')?.value || 'vendemmia_asc').split('_');
+  list = [...list].sort((a,b) => {
+    let va = a[sk], vb = b[sk];
+    if (va === null || va === undefined || va === '') va = (sd === 'asc') ? Infinity : -Infinity;
+    if (vb === null || vb === undefined || vb === '') vb = (sd === 'asc') ? Infinity : -Infinity;
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return sd === 'asc' ? -1 : 1;
+    if (va > vb) return sd === 'asc' ? 1 : -1;
+    return 0;
+  });
+  return list;
+}
+
+function updateActiveFilters() {
+  const el = document.getElementById('activeFilters');
+  const chips = [];
+  ['tipo','regione','etichetta','quadrante','abb','dw'].forEach(field => {
+    filters[field].forEach(v => {
+      const label = field === 'dw' ? ({young:'Giovane',ready:'Pronto',peak:'Apice',mature:'Maturo',old:'Vecchio'})[v] : v;
+      const prefix = field === 'abb' ? '🍽' : field === 'dw' ? '🕐' : field === 'quadrante' ? '📍' : '';
+      chips.push(`<div class="af-chip" onclick="removeFilter('${field}','${v}')">${prefix} ${label} ✕</div>`);
+    });
+  });
+  if (filters.yearFrom || filters.yearTo) chips.push(`<div class="af-chip" onclick="clearRange('year')">Anno ${filters.yearFrom||'..'}–${filters.yearTo||'..'} ✕</div>`);
+  if (filters.priceFrom || filters.priceTo) chips.push(`<div class="af-chip" onclick="clearRange('price')">€ ${filters.priceFrom||0}–${filters.priceTo||'∞'} ✕</div>`);
+  el.innerHTML = chips.join('');
+  el.classList.toggle('has', chips.length > 0);
+}
+
+function removeFilter(field, val) {
+  filters[field].delete(val);
+  const inp = document.querySelector(`input[data-field="${field}"][data-val="${val}"]`);
+  if (inp) inp.checked = false;
+  applyFilters();
+}
+function clearRange(type) {
+  if (type === 'year') { document.getElementById('yearFrom').value=''; document.getElementById('yearTo').value=''; }
+  if (type === 'price') { document.getElementById('priceFrom').value=''; document.getElementById('priceTo').value=''; }
+  applyFilters();
+}
+function resetFilters() {
+  filters = { tipo: new Set(), regione: new Set(), etichetta: new Set(), quadrante: new Set(), dw: new Set(), abb: new Set(), yearFrom:'', yearTo:'', priceFrom:'', priceTo:'', search:'' };
+  document.querySelectorAll('.fcheck input').forEach(c => c.checked = false);
+  document.getElementById('searchInput').value = '';
+  document.getElementById('yearFrom').value = '';
+  document.getElementById('yearTo').value = '';
+  document.getElementById('priceFrom').value = '';
+  document.getElementById('priceTo').value = '';
+  applyFilters();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════
+function typeClass(tipo) {
+  if (!tipo) return '';
+  const t = tipo.toLowerCase();
+  if (t.includes('rosso')) return 'type-rosso';
+  if (t.includes('spumante')) return 'type-spumante';
+  if (t.includes('rosè') || t.includes('rose')) return 'type-rose';
+  if (t.includes('bianco')) return 'type-bianco';
+  return '';
+}
+
+function renderDWCell(w) {
+  if (!w.finestraBevuta || !w.finestraBevuta.peak) return `<span class="abb-none">—</span>`;
+  const fw = w.finestraBevuta;
+  const now = new Date().getFullYear();
+  const status = getDWStatus(fw, now);
+  const badgeClass = `dw-${status.key}`;
+  return `
+    <div class="dw-status-row"><span class="dw-badge ${badgeClass}">${status.label}</span></div>
+    <div class="dw-years">${fw.start}–${fw.peak}–${fw.end}</div>
+  `;
+}
+
+function renderAbbCell(w) {
+  if (!w.abbinamenti || w.abbinamenti.length === 0) return `<span class="abb-none">—</span>`;
+  return `<div class="abb-tags">${w.abbinamenti.map(a => {
+    const cat = ABB_CATEGORY[a] || '';
+    return `<span class="abb-tag ${cat}">${a}</span>`;
+  }).join('')}</div>`;
+}
+
+function render() {
+  const list = getFiltered();
+  // Stats
+  const inStock = wines.filter(w => w.inStock && !w.deletedAt);
+  const bott = inStock.reduce((s,w) => s + (w.riconteggio||0), 0);
+  const val = inStock.reduce((s,w) => s + (w.riconteggio||0)*(w.valore||0), 0);
+  document.getElementById('hs-bottles').textContent = bott;
+  document.getElementById('hs-value').textContent = val.toFixed(0)+'€';
+  document.getElementById('resultCount').textContent = `${list.length} vini · ${list.reduce((s,w)=>s+(w.riconteggio||0),0)} bott.`;
+
+  const tbody = document.getElementById('tableBody');
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty"><div class="empty-title">Nessun risultato</div><div class="empty-sub">Prova a modificare i filtri</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(w => `
+    <tr onclick="openModal('${w.id}')">
+      <td><span class="type-dot ${typeClass(w.tipo)}"></span></td>
+      <td>
+        <div class="td-name">${w.bottiglia}</div>
+        <div class="td-sub">${w.azienda}</div>
+      </td>
+      <td>${w.vendemmia || '—'}</td>
+      <td>${w.regione}</td>
+      <td class="col-area">${w.area !== w.regione ? w.area : '—'}</td>
+      <td class="col-doc">${w.etichetta ? `<span class="chip chip-doc">${w.etichetta}</span>` : '—'}</td>
+      <td class="col-pos">${w.quadrante ? `<span class="chip chip-pos">${w.quadrante}</span>` : '—'}</td>
+      <td class="chip-price">${w.valore ? w.valore+'€' : '—'}</td>
+      <td>${w.inStock ? `<span class="chip ${w.riconteggio>0?'chip-qty':'chip-qty-0'}">${w.riconteggio}</span>` : '—'}</td>
+      <td class="dw-col">${renderDWCell(w)}</td>
+      <td class="abb-col">${renderAbbCell(w)}</td>
+    </tr>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════
+// Stato modalità modifica (null = view, id = in edit per quell'id)
+let editMode = null;
+
+function openModal(id) {
+  const w = wines.find(x => String(x.id) === String(id));
+  if (!w) return;
+  editMode = null; // reset edit mode ogni volta che si apre
+  refreshModal(w);
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+// Ricostruisce header + body del modal per un dato vino, usando lo stato editMode
+function refreshModal(w) {
+  const titleEl = document.getElementById('modal-title');
+  titleEl.textContent = w.bottiglia;
+  titleEl.dataset.id = w.id;
+  document.getElementById('modal-sub').textContent = `${w.azienda} · ${w.regione}${w.vendemmia ? ' · '+w.vendemmia : ''}`;
+  // Bottone Modifica nell'header actions
+  const editHeader = document.getElementById('modal-edit-header');
+  if (String(editMode) === String(w.id)) {
+    editHeader.innerHTML = `<button class="edit-btn active" onclick="exitEdit()">✕ Annulla</button>`;
+  } else {
+    editHeader.innerHTML = `<button class="edit-btn" onclick="enterEdit('${w.id}')">✏️ Modifica</button>`;
+  }
+  document.getElementById('modal-body').innerHTML = buildModalBody(w);
+}
+
+function enterEdit(id) {
+  editMode = id;
+  const w = wines.find(x => String(x.id) === String(id));
+  if (w) refreshModal(w);
+}
+
+function exitEdit() {
+  const id = editMode;
+  editMode = null;
+  const w = wines.find(x => String(x.id) === String(id));
+  if (w) refreshModal(w);
+}
+
+// Salva le modifiche dal form di edit
+async function saveEdit(id) {
+  const w = wines.find(x => String(x.id) === String(id));
+  if (!w) return;
+  // Leggi i campi
+  const getVal = fid => {
+    const el = document.getElementById('edit-' + fid);
+    return el ? el.value.trim() : '';
+  };
+  const newBottiglia = getVal('bottiglia');
+  const newAzienda = getVal('azienda');
+  if (!newBottiglia || !newAzienda) { showToast('⚠️ Azienda e nome obbligatori'); return; }
+
+  // Capture old values to detect if AI needs re-enrichment
+  const oldBottiglia = w.bottiglia;
+  const oldVendemmia = w.vendemmia;
+  const oldArea = w.area;
+  const oldEtichetta = w.etichetta;
+  const oldTipo = w.tipo;
+
+  // Costruisci patch
+  const vend = parseInt(getVal('vendemmia'));
+  const val = parseFloat(getVal('valore'));
+  const newQtaIniziale = parseInt(getVal('qtaIniziale'));
+  const newRiconteggio = parseInt(getVal('riconteggio'));
+  const patch = {
+    azienda: newAzienda,
+    bottiglia: newBottiglia,
+    regione: getVal('regione'),
+    area: getVal('area'),
+    etichetta: getVal('etichetta'),
+    vendemmia: isNaN(vend) ? null : vend,
+    tipo: getVal('tipo'),
+    valore: isNaN(val) ? 0 : val,
+    noteAcquisto: getVal('noteAcquisto'),
+    utilizzo: getVal('utilizzo'),
+  };
+  // Quantità: gestione intelligente delle relazioni
+  if (!isNaN(newQtaIniziale) && newQtaIniziale >= 0) {
+    patch.qtaIniziale = newQtaIniziale;
+  }
+  if (w.inStock) {
+    patch.quadrante = getVal('quadrante');
+    if (!isNaN(newRiconteggio) && newRiconteggio >= 0) {
+      patch.riconteggio = newRiconteggio;
+      // Se riconteggio supera qtaIniziale, alza qtaIniziale (incoerenza altrimenti)
+      const finalQtaIniziale = patch.qtaIniziale != null ? patch.qtaIniziale : (w.qtaIniziale || 0);
+      if (newRiconteggio > finalQtaIniziale) {
+        patch.qtaIniziale = newRiconteggio;
+      }
+    }
+  }
+
+  // Se cambiano campi rilevanti per finestra/abbinamenti, reset AI
+  const needsReenrich = (
+    patch.bottiglia !== oldBottiglia || patch.vendemmia !== oldVendemmia ||
+    patch.area !== oldArea || patch.etichetta !== oldEtichetta || patch.tipo !== oldTipo
+  );
+  if (needsReenrich) {
+    patch.aiEnriched = false;
+    patch.aiLivello = null;
+    patch.aiFonte = null;
+    patch.aiNote = null;
+    patch.aiTimestamp = null;
+    patch.dwSource = null;
+    patch.finestraBevuta = null;
+    patch.abbinamenti = null;
+  }
+
+  try {
+    const updated = await apiPatch(id, patch);
+    // Se erano cambiati campi rilevanti, aggiungi enrich da DB interno (in-memory only fino a "Rianalizza con AI")
+    if (needsReenrich) enrichWine(updated);
+    updateInMemory(updated);
+    editMode = null;
+    refreshModal(updated);
+    render();
+    buildFilterPanels();
+    showToast('✅ Modifiche salvate');
+  } catch (err) {
+    showToast('❌ Salvataggio fallito: ' + err.message);
+  }
+}
+
+// Elimina un vino (hard delete via API)
+async function deleteWine(id) {
+  const w = wines.find(x => String(x.id) === String(id));
+  if (!w) return;
+  if (!confirm(`Eliminare definitivamente "${w.bottiglia}" di ${w.azienda}?\n\nQuesta azione non può essere annullata.`)) return;
+  try {
+    await apiDelete(id);
+    removeFromMemory(id);
+    editMode = null;
+    _doCloseModal();
+    render();
+    buildFilterPanels();
+    showToast(`🗑 "${w.bottiglia}" eliminato`);
+  } catch (err) {
+    showToast('❌ Eliminazione fallita: ' + err.message);
+  }
+}
+
+function buildModalBody(w) {
+  const now = new Date().getFullYear();
+  const fw = w.finestraBevuta;
+  const isEdit = String(editMode) === String(w.id);
+
+  // MODE: VIEW — rendering standard
+  // MODE: EDIT — campi diventano input
+
+  // Drinking window timeline (solo in view mode)
+  let dwHtml = '<div class="abb-none">Finestra non disponibile</div>';
+  if (fw && fw.peak) {
+    const status = getDWStatus(fw, now);
+    const totalSpan = fw.end - fw.start;
+    const readyEnd = ((fw.peak - 1) - fw.start) / totalSpan * 100;
+    const peakEnd = ((fw.peak + 1) - fw.start) / totalSpan * 100;
+    const nowPos = Math.max(0, Math.min(100, (now - fw.start) / totalSpan * 100));
+    const showNow = now >= fw.start && now <= fw.end;
+    dwHtml = `
+      <div class="dw-timeline">
+        <div class="dw-segment dw-seg-ready" style="left:0;width:${readyEnd}%;">Pronto</div>
+        <div class="dw-segment dw-seg-peak" style="left:${readyEnd}%;width:${peakEnd-readyEnd}%;">Apice</div>
+        <div class="dw-segment dw-seg-mature" style="left:${peakEnd}%;width:${100-peakEnd}%;">Maturo</div>
+        ${showNow ? `<div class="dw-now-marker" style="left:calc(${nowPos}% - 1px);"></div>` : ''}
+      </div>
+      <div class="dw-labels">
+        <span>${fw.start}</span>
+        <span style="color:var(--green);font-weight:600;">Apice ${fw.peak}</span>
+        <span>${fw.end}</span>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:var(--ink);font-weight:500;">
+        Stato attuale (${now}): <span class="dw-badge dw-${status.key}">${status.label}</span>
+      </div>
+      ${w.aiEnriched ? `
+      <div class="dw-source">
+        <div class="dw-source-title">
+          🤖 Analisi AI
+          ${w.aiLivello === 1 ? '<span class="ai-level-badge ai-level-1">● Specifica</span>' : ''}
+          ${w.aiLivello === 2 ? '<span class="ai-level-badge ai-level-2">● Annata+Zona</span>' : ''}
+          ${w.aiLivello === 3 ? '<span class="ai-level-badge ai-level-3">● Generica</span>' : ''}
+        </div>
+        <div class="dw-source-text">
+          ${w.aiFonte ? `<strong style="text-transform:none;">Fonti:</strong> ${w.aiFonte}<br>` : ''}
+          ${w.aiNote || ''}
+        </div>
+        ${w.aiTimestamp ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:'SF Mono',Menlo,monospace;">Analisi del ${new Date(w.aiTimestamp).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+        ${w.aiLivello === 3 ? `<div class="dw-source-note">⚠️ Claude non ha trovato info specifiche su questo vino o sull'annata, quindi ha usato un profilo generico del vitigno.</div>` : ''}
+        <button class="ai-retry-btn" onclick="retryAI('${w.id}');event.stopPropagation()" ${!isAIEnabled() ? 'disabled title="Configura AI nelle Statistiche"' : ''}>🔄 Rianalizza con AI</button>
+      </div>
+      ` : (w.dwSource ? `
+      <div class="dw-source">
+        <div class="dw-source-title">ℹ️ Stima da database interno app</div>
+        <div class="dw-source-text">
+          ${w.dwSource.isGeneric
+            ? `Profilo ${w.dwSource.profile} — nessun vitigno specifico riconosciuto nel nome. Finestra tipica: pronto dopo ${w.dwSource.years.s} anni, apice a ${w.dwSource.years.p} anni dalla vendemmia.`
+            : `Profilo varietale <strong>${w.dwSource.profile}</strong> dal database interno dell'app (~50 vitigni). Finestra tipica: pronto dopo ${w.dwSource.years.s} anni dalla vendemmia, apice a ${w.dwSource.years.p}, declino oltre ${w.dwSource.years.e}.`
+          }
+        </div>
+        <div class="dw-source-note">⚠️ Stima generica — non considera l'annata specifica o il produttore.</div>
+        ${isAIEnabled() ? `<button class="ai-retry-btn" onclick="retryAI('${w.id}');event.stopPropagation()">🤖 Analizza con AI</button>` : ''}
+      </div>` : '')}
+    `;
+  }
+
+  // Abbinamenti
+  let abbHtml = '<div class="abb-none">—</div>';
+  if (w.abbinamenti && w.abbinamenti.length) {
+    abbHtml = `<div class="modal-abb-tags">${w.abbinamenti.map(a => {
+      const cat = ABB_CATEGORY[a] || '';
+      return `<span class="modal-abb-tag abb-tag ${cat}">${a}</span>`;
+    }).join('')}</div>`;
+  }
+
+  const qtyHtml = (w.inStock && !isEdit) ? `
+    <div class="msec">
+      <div class="msec-lbl">📦 Gestione bottiglie</div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="adjustQty('${w.id}',-1);event.stopPropagation()">−</button>
+        <div style="text-align:center;">
+          <div class="qty-val">${w.riconteggio}</div>
+          <div class="qty-lbl">in cantina</div>
+        </div>
+        <button class="qty-btn" onclick="adjustQty('${w.id}',1);event.stopPropagation()">+</button>
+      </div>
+    </div>` : '';
+
+  // ═══════════════════════════════════════════════════════════
+  // EDIT MODE — campi editabili
+  // ═══════════════════════════════════════════════════════════
+  if (isEdit) {
+    const tipoOptions = ['Rosso','Bianco','Bianco Spumante','Rosè','Rose Spumante']
+      .map(t => `<option value="${t}" ${w.tipo === t ? 'selected' : ''}>${t}</option>`).join('');
+    return `
+      <div class="detail-grid">
+        <div class="detail-card editing" style="grid-column:1/-1;">
+          <div class="detail-lbl">Azienda *</div>
+          <input class="edit-input" id="edit-azienda" value="${escapeHtml(w.azienda||'')}">
+        </div>
+        <div class="detail-card editing" style="grid-column:1/-1;">
+          <div class="detail-lbl">Nome vino *</div>
+          <input class="edit-input" id="edit-bottiglia" value="${escapeHtml(w.bottiglia||'')}">
+        </div>
+        <div class="detail-card editing">
+          <div class="detail-lbl">Regione</div>
+          <input class="edit-input" id="edit-regione" value="${escapeHtml(w.regione||'')}">
+        </div>
+        <div class="detail-card editing">
+          <div class="detail-lbl">Area</div>
+          <input class="edit-input" id="edit-area" value="${escapeHtml(w.area||'')}">
+        </div>
+        <div class="detail-card editing">
+          <div class="detail-lbl">Vendemmia</div>
+          <input class="edit-input" id="edit-vendemmia" type="number" value="${w.vendemmia || ''}">
+        </div>
+        <div class="detail-card editing">
+          <div class="detail-lbl">Tipo</div>
+          <select class="edit-select" id="edit-tipo">${tipoOptions}</select>
+        </div>
+        <div class="detail-card editing">
+          <div class="detail-lbl">Marchio</div>
+          <input class="edit-input" id="edit-etichetta" value="${escapeHtml(w.etichetta||'')}">
+        </div>
+        <div class="detail-card editing">
+          <div class="detail-lbl">Valore €/bott.</div>
+          <input class="edit-input" id="edit-valore" type="number" step="0.01" value="${w.valore || 0}">
+        </div>
+        <div class="detail-card editing">
+          <div class="detail-lbl">🛒 Bott. acquistate (storico totale)</div>
+          <input class="edit-input" id="edit-qtaIniziale" type="number" min="0" step="1" value="${w.qtaIniziale || 0}">
+        </div>
+        ${w.inStock ? `
+        <div class="detail-card editing">
+          <div class="detail-lbl">📦 Bott. in cantina (attuali)</div>
+          <input class="edit-input" id="edit-riconteggio" type="number" min="0" step="1" value="${w.riconteggio || 0}">
+        </div>
+        <div class="detail-card editing">
+          <div class="detail-lbl">📍 Posizione</div>
+          <input class="edit-input" id="edit-quadrante" value="${escapeHtml(w.quadrante||'')}">
+        </div>` : ''}
+      </div>
+      <div class="detail-card editing" style="margin-bottom:12px;">
+        <div class="detail-lbl">Note acquisto</div>
+        <input class="edit-input" id="edit-noteAcquisto" value="${escapeHtml(w.noteAcquisto||'')}">
+      </div>
+      <div class="detail-card editing" style="margin-bottom:16px;">
+        <div class="detail-lbl">Note personali</div>
+        <textarea class="edit-textarea" id="edit-utilizzo">${escapeHtml(w.utilizzo||'')}</textarea>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:16px;font-style:italic;line-height:1.5;">
+        ℹ️ Modifiche a nome vino, vendemmia, area o marchio fanno ricalcolare automaticamente Finestra di Bevuta e Abbinamenti.<br>
+        ℹ️ Se imposti "Bottiglie in cantina" più alto delle "Bottiglie acquistate", quest'ultime vengono allineate automaticamente.
+      </div>
+      <div class="modal-actions">
+        <button class="mact mact-primary" onclick="saveEdit('${w.id}');event.stopPropagation()">💾 Salva modifiche</button>
+        <button class="mact mact-secondary" onclick="exitEdit()">↩︎ Annulla</button>
+      </div>
+    `;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // VIEW MODE — rendering standard
+  // ═══════════════════════════════════════════════════════════
+  return `
+    <div class="detail-grid">
+      ${w.area && w.area !== w.regione ? `<div class="detail-card"><div class="detail-lbl">Area</div><div class="detail-val">${w.area}</div></div>` : ''}
+      ${w.tipo ? `<div class="detail-card"><div class="detail-lbl">Tipo</div><div class="detail-val">${w.tipo}</div></div>` : ''}
+      ${w.etichetta ? `<div class="detail-card"><div class="detail-lbl">Marchio</div><div class="detail-val">${w.etichetta}</div></div>` : ''}
+      ${w.valore ? `<div class="detail-card"><div class="detail-lbl">Valore</div><div class="detail-val">${w.valore}€/bott.</div></div>` : ''}
+      ${w.inStock && w.quadrante ? `<div class="detail-card"><div class="detail-lbl">📍 Posizione</div><div class="detail-val">${w.quadrante}</div></div>` : ''}
+      ${w.qtaIniziale ? `<div class="detail-card"><div class="detail-lbl">🛒 Bott. acquistate totali</div><div class="detail-val">${w.qtaIniziale}${!w.inStock && w.valore ? ` <span style="font-size:11px;color:var(--muted);">· ${(w.qtaIniziale * w.valore).toFixed(0)}€ smaltiti</span>` : ''}</div></div>` : ''}
+      ${w.conservazione ? `<div class="detail-card"><div class="detail-lbl">Conservazione</div><div class="detail-val" style="font-size:12px;">${w.conservazione}</div></div>` : ''}
+    </div>
+    ${w.noteAcquisto ? `<div class="detail-card" style="margin-bottom:12px;"><div class="detail-lbl">Note acquisto</div><div class="detail-val" style="font-size:13px;">${w.noteAcquisto}</div></div>` : ''}
+    ${w.utilizzo ? `<div class="detail-card" style="margin-bottom:16px;"><div class="detail-lbl">Note personali</div><div class="detail-val" style="font-size:13px;">${w.utilizzo}</div></div>` : ''}
+    
+    <div class="msec">
+      <div class="msec-lbl">🕐 Finestra di Bevuta</div>
+      <div class="msec-content">${dwHtml}</div>
+    </div>
+    
+    <div class="msec">
+      <div class="msec-lbl">🍽 Abbinamenti suggeriti</div>
+      <div class="msec-content">${abbHtml}</div>
+    </div>
+    
+    ${qtyHtml}
+    
+    <div class="modal-actions">
+      ${w.inStock
+        ? ''
+        : `<button class="mact mact-secondary" onclick="markIn('${w.id}');event.stopPropagation()">📥 Rimetti in cantina</button>`
+      }
+      <button class="mact mact-secondary" onclick="closeModal()">Chiudi</button>
+    </div>
+
+    <div class="delete-section">
+      <button class="delete-btn" onclick="deleteWine('${w.id}');event.stopPropagation()">🗑 Elimina vino definitivamente</button>
+    </div>
+  `;
+}
+
+// Helper: escape HTML entities in attribute values
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Rianalizza un vino con AI (chiamato dal bottone nel modal)
+async function retryAI(id) {
+  if (!isAIEnabled()) {
+    showToast('⚠️ Configura prima l\'AI in Statistiche → Configurazione AI');
+    return;
+  }
+  const w = wines.find(x => String(x.id) === String(id));
+  if (!w) return;
+  // Mostra stato "in analisi" nel modal
+  const modalBody = document.getElementById('modal-body');
+  if (modalBody) {
+    modalBody.insertAdjacentHTML('afterbegin',
+      `<div class="ai-analyzing"><div class="ai-spinner"></div><div>Claude sta cercando info specifiche su <strong>${escapeHtml(w.bottiglia)}</strong> — attendi 5-15 secondi...</div></div>`);
+  }
+  showToast('🤖 Analisi AI in corso...');
+  const result = await enrichWithAI(w, { forceAI: true });
+  // Importante: dopo updateInMemory, l'oggetto w originale è stato sostituito.
+  // Refetch dall'array per avere l'ultimo stato.
+  const updated = wines.find(x => String(x.id) === String(id));
+  if (result.usedAI && !result.failed) {
+    const livDesc = { 1: 'info specifiche', 2: 'annata+zona', 3: 'profilo generico' }[result.livello] || '';
+    showToast(`✅ Analisi completata (${livDesc})`);
+    if (updated) refreshModal(updated);
+    render();
+  } else {
+    const reasonMsg = {
+      network: '❌ AI non raggiungibile, riprova più tardi',
+      invalid_finestra: '❌ AI ha restituito dati incoerenti, riprova',
+      invalid_abbinamenti: '❌ AI non ha fornito abbinamenti validi, riprova',
+    }[result.reason] || '❌ AI non disponibile';
+    showToast(reasonMsg);
+    if (updated) refreshModal(updated);
+  }
+}
+
+function closeModal() {
+  // Check if wine in modal has 0 bottles and is in stock → auto-move to storico
+  const titleEl = document.getElementById('modal-title');
+  const wineId = titleEl ? titleEl.dataset.id : null;
+  if (wineId) {
+    const w = wines.find(x => String(x.id) === String(wineId));
+    if (w && w.inStock && (w.riconteggio || 0) === 0) {
+      showAutoMoveDialog(w);
+      return;
+    }
+  }
+  _doCloseModal();
+}
+function _doCloseModal() {
+  editMode = null;
+  document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function closeModalIf(e) { if (e.target === document.getElementById('overlay')) closeModal(); }
+
+function showAutoMoveDialog(w) {
+  const dlg = document.getElementById('autoMoveDialog');
+  document.getElementById('autoMoveText').innerHTML = `Le bottiglie di <strong>${w.bottiglia}</strong> di ${w.azienda} sono terminate (0 in cantina).<br><br>Il vino verrà spostato automaticamente nello <strong>Storico</strong>.`;
+  dlg.classList.add('open');
+  // Store wine id for the OK handler
+  dlg.dataset.wineId = w.id;
+}
+
+async function confirmAutoMove() {
+  const dlg = document.getElementById('autoMoveDialog');
+  const id = dlg.dataset.wineId;
+  try {
+    const updated = await apiMarkOut(id);
+    updateInMemory(updated);
+    render(); buildFilterPanels();
+    showToast('📚 Vino spostato nello storico');
+  } catch (err) {
+    showToast('❌ ' + err.message);
+  }
+  dlg.classList.remove('open');
+  _doCloseModal();
+}
+
+async function adjustQty(id, delta) {
+  const w = wines.find(x => String(x.id) === String(id));
+  if (!w) return;
+  try {
+    const updated = delta > 0 ? await apiIncrement(id) : await apiDecrement(id);
+    updateInMemory(updated);
+    render();
+    refreshModal(updated);
+    showToast(delta > 0 ? '+ Nuova bottiglia acquistata' : '− Bottiglia consumata');
+  } catch (err) {
+    showToast('❌ ' + err.message);
+  }
+}
+
+async function markOut(id) {
+  try {
+    const updated = await apiMarkOut(id);
+    updateInMemory(updated);
+    render(); buildFilterPanels(); _doCloseModal();
+    showToast('Vino spostato nello storico');
+  } catch (err) {
+    showToast('❌ ' + err.message);
+  }
+}
+async function markIn(id) {
+  try {
+    const updated = await apiMarkIn(id);
+    updateInMemory(updated);
+    render(); buildFilterPanels(); _doCloseModal();
+    showToast('Vino rimesso in cantina');
+  } catch (err) {
+    showToast('❌ ' + err.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADD WINE
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// AUTOCOMPLETE SYSTEM
+// ═══════════════════════════════════════════════════════════
+const AC_FIELDS = ['azienda', 'regione', 'area', 'etichetta', 'quadrante'];
+let acActiveIndex = -1;
+let acActiveField = null;
+
+function getUniqueValues(field) {
+  const set = new Set();
+  wines.filter(w => !w.deletedAt).forEach(w => {
+    const v = (w[field] || '').trim();
+    if (v) set.add(v);
+  });
+  return [...set].sort((a,b) => a.localeCompare(b, 'it'));
+}
+
+function setupAutocomplete(field) {
+  const inputId = 'f-' + field;
+  const listId = 'ac-' + field;
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  if (!input || !list) return;
+
+  const values = getUniqueValues(field);
+  // Count occurrences for "ordinary by popularity"
+  const counts = {};
+  wines.filter(w => !w.deletedAt).forEach(w => {
+    const v = (w[field] || '').trim();
+    if (v) counts[v] = (counts[v] || 0) + 1;
+  });
+
+  const render = () => {
+    const q = input.value.trim().toLowerCase();
+    const matches = values
+      .filter(v => !q || v.toLowerCase().includes(q))
+      .filter(v => v.toLowerCase() !== q) // hide exact match
+      .sort((a,b) => {
+        // Prefix matches first, then popularity
+        const aStart = a.toLowerCase().startsWith(q) ? 0 : 1;
+        const bStart = b.toLowerCase().startsWith(q) ? 0 : 1;
+        if (aStart !== bStart) return aStart - bStart;
+        return (counts[b] || 0) - (counts[a] || 0);
+      })
+      .slice(0, 8);
+
+    if (matches.length === 0) { list.classList.remove('open'); return; }
+
+    list.innerHTML = matches.map((v, i) => {
+      const highlighted = q ? v.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>') : v;
+      return `<div class="ac-item" data-val="${v.replace(/"/g, '&quot;')}" data-idx="${i}">
+        <span class="ac-item-main">${highlighted}</span>
+        <span class="ac-item-meta">${counts[v]}×</span>
+      </div>`;
+    }).join('');
+    list.classList.add('open');
+    acActiveIndex = -1;
+    acActiveField = field;
+
+    // Click handlers
+    list.querySelectorAll('.ac-item').forEach(item => {
+      item.addEventListener('mousedown', e => {
+        e.preventDefault(); // avoid blur before click
+        input.value = item.dataset.val;
+        list.classList.remove('open');
+        // If azienda picked, maybe auto-fill other fields from most common wine of this azienda
+        if (field === 'azienda') autofillFromAzienda(item.dataset.val);
+        if (field === 'regione') autofillFromRegione(item.dataset.val);
+      });
+    });
+  };
+
+  input.addEventListener('input', render);
+  input.addEventListener('focus', render);
+  input.addEventListener('blur', () => {
+    setTimeout(() => list.classList.remove('open'), 150);
+  });
+  input.addEventListener('keydown', e => {
+    if (!list.classList.contains('open')) return;
+    const items = list.querySelectorAll('.ac-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      acActiveIndex = Math.min(acActiveIndex + 1, items.length - 1);
+      updateAcHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      acActiveIndex = Math.max(acActiveIndex - 1, -1);
+      updateAcHighlight(items);
+    } else if (e.key === 'Enter' && acActiveIndex >= 0) {
+      e.preventDefault();
+      const item = items[acActiveIndex];
+      input.value = item.dataset.val;
+      list.classList.remove('open');
+      if (field === 'azienda') autofillFromAzienda(item.dataset.val);
+      if (field === 'regione') autofillFromRegione(item.dataset.val);
+    } else if (e.key === 'Escape') {
+      list.classList.remove('open');
+    }
+  });
+}
+
+function updateAcHighlight(items) {
+  items.forEach((it, i) => it.classList.toggle('active', i === acActiveIndex));
+  if (acActiveIndex >= 0) items[acActiveIndex].scrollIntoView({ block: 'nearest' });
+}
+
+// Smart helper: when user picks an azienda they already have, pre-fill regione/area
+function autofillFromAzienda(az) {
+  const wine = wines.find(w => w.azienda === az);
+  if (!wine) return;
+  const r = document.getElementById('f-regione');
+  const a = document.getElementById('f-area');
+  if (r && !r.value) r.value = wine.regione || '';
+  if (a && !a.value) a.value = wine.area || '';
+}
+
+// When regione picked, suggest area automatically only if one area exists for that regione
+function autofillFromRegione(reg) {
+  const a = document.getElementById('f-area');
+  if (!a || a.value) return;
+  const areas = [...new Set(wines.filter(w => w.regione === reg).map(w => w.area).filter(Boolean))];
+  if (areas.length === 1) a.value = areas[0];
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADD PANEL
+// ═══════════════════════════════════════════════════════════
+function openAdd() {
+  document.getElementById('addPanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  // Setup autocomplete on open (so it uses fresh wine list)
+  AC_FIELDS.forEach(setupAutocomplete);
+}
+function closeAdd() { document.getElementById('addPanel').classList.remove('open'); document.body.style.overflow=''; }
+
+// Verifica se due vini sono "uguali" per dedup: azienda + bottiglia + vendemmia + etichetta
+function winesMatch(a, b) {
+  const norm = s => (s || '').trim().toLowerCase();
+  return norm(a.azienda) === norm(b.azienda)
+      && norm(a.bottiglia) === norm(b.bottiglia)
+      && (a.vendemmia || null) === (b.vendemmia || null)
+      && norm(a.etichetta) === norm(b.etichetta);
+}
+
+async function saveWine() {
+  const azienda = document.getElementById('f-azienda').value.trim();
+  const bottiglia = document.getElementById('f-bottiglia').value.trim();
+  if (!azienda || !bottiglia) { showToast('⚠️ Azienda e nome obbligatori'); return; }
+  const qty = parseInt(document.getElementById('f-qta').value) || 1;
+  const candidate = {
+    azienda, bottiglia,
+    regione: document.getElementById('f-regione').value.trim(),
+    area: document.getElementById('f-area').value.trim(),
+    etichetta: document.getElementById('f-etichetta').value.trim(),
+    vendemmia: parseInt(document.getElementById('f-vendemmia').value) || null,
+    tipo: document.getElementById('f-tipo').value,
+    valore: parseFloat(document.getElementById('f-valore').value) || 0,
+    quadrante: document.getElementById('f-quadrante').value.trim(),
+    noteAcquisto: document.getElementById('f-note').value.trim(),
+    utilizzo: document.getElementById('f-utilizzo').value.trim(),
+  };
+
+  // CERCA VINO IDENTICO ESISTENTE
+  const existing = wines.find(w => winesMatch(w, candidate));
+
+  let action = 'new';
+  let targetWine;
+
+  try {
+    if (existing && existing.inStock) {
+      // CASO MERGE: identico in cantina → +qty bottiglie + eventuali campi nuovi
+      const patch = {
+        qtaIniziale: (existing.qtaIniziale || 0) + qty,
+        riconteggio: (existing.riconteggio || 0) + qty,
+      };
+      if (candidate.quadrante) patch.quadrante = candidate.quadrante;
+      if (candidate.valore && !existing.valore) patch.valore = candidate.valore;
+      if (candidate.noteAcquisto) {
+        patch.noteAcquisto = existing.noteAcquisto
+          ? existing.noteAcquisto + ' | ' + candidate.noteAcquisto
+          : candidate.noteAcquisto;
+      }
+      const updated = await apiPatch(existing.id, patch);
+      updateInMemory(updated);
+      targetWine = updated;
+      action = 'merge';
+    } else if (existing && !existing.inStock) {
+      // CASO RESTORE: dallo storico → ripristina + qty bottiglie
+      const patch = {
+        inStock: true,
+        qtaIniziale: (existing.qtaIniziale || 0) + qty,
+        riconteggio: qty,
+        quadrante: candidate.quadrante || '',
+      };
+      if (candidate.valore) patch.valore = candidate.valore;
+      if (candidate.noteAcquisto) {
+        patch.noteAcquisto = existing.noteAcquisto
+          ? existing.noteAcquisto + ' | ' + candidate.noteAcquisto
+          : candidate.noteAcquisto;
+      }
+      const updated = await apiPatch(existing.id, patch);
+      updateInMemory(updated);
+      targetWine = updated;
+      action = 'restore';
+    } else {
+      // CASO NEW: vino nuovo → POST /db
+      const newWineData = {
+        ...candidate,
+        qtaIniziale: qty,
+        riconteggio: qty,
+        conservazione: 'Conservato in cantina',
+        inStock: true,
+      };
+      // Pre-popola con DB interno come fallback (AI lo sovrascriverà)
+      enrichWine(newWineData);
+      const created = await apiCreate(newWineData);
+      updateInMemory(created);
+      targetWine = created;
+      action = 'new';
+    }
+  } catch (err) {
+    showToast('❌ Salvataggio fallito: ' + err.message);
+    return;
+  }
+
+  // Reset form
+  ['f-azienda','f-bottiglia','f-regione','f-area','f-etichetta','f-vendemmia','f-quadrante','f-note','f-utilizzo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-qta').value = 1;
+  document.getElementById('f-valore').value = '';
+  closeAdd();
+  buildFilterPanels();
+  setTab('stock');
+
+  if (action === 'merge') {
+    showToast(`🔁 +${qty} bottiglie aggiunte a ${targetWine.bottiglia} (tot. acquistate: ${targetWine.qtaIniziale})`);
+  } else if (action === 'restore') {
+    showToast(`🔄 ${targetWine.bottiglia} ripristinato dallo storico con ${qty} bottiglie`);
+  } else {
+    showToast(`✅ ${targetWine.bottiglia} aggiunto${isAIEnabled() ? ' · Claude sta cercando info specifiche...' : ''}`);
+  }
+
+  // Chiama AI solo sui nuovi vini (non merge/restore) se configurata
+  if (action === 'new' && isAIEnabled()) {
+    const result = await enrichWithAI(targetWine, { forceAI: true });
+    render();
+    if (result.usedAI && !result.failed) {
+      const livDesc = { 1: 'info specifiche trovate', 2: 'info su annata+zona', 3: 'profilo generico' }[result.livello] || '';
+      showToast(`🤖 Claude ha arricchito ${targetWine.bottiglia} (${livDesc})`);
+    } else {
+      showToast(`⚠️ AI non disponibile, info da DB interno`);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════════════════════
+function renderStats() {
+  const inStock = wines.filter(w => w.inStock && !w.deletedAt);
+  const total = inStock.reduce((s,w) => s + (w.riconteggio||0), 0);
+  const value = inStock.reduce((s,w) => s + (w.riconteggio||0)*(w.valore||0), 0);
+  const labels = [...new Set(inStock.map(w => w.etichetta).filter(Boolean))];
+  const docgCount = inStock.filter(w => w.etichetta === 'DOCG').length;
+  const avgPrice = total > 0 ? (value/total) : 0;
+  const now = new Date().getFullYear();
+  const readyBottles = inStock.filter(w => {
+    const s = getDWStatus(w.finestraBevuta, now);
+    return ['ready','peak','mature'].includes(s.key);
+  }).reduce((s,w) => s + (w.riconteggio||0), 0);
+  const youngBottles = inStock.filter(w => getDWStatus(w.finestraBevuta, now).key === 'young').reduce((s,w) => s + (w.riconteggio||0), 0);
+
+  const byRegion = {};
+  inStock.forEach(w => { byRegion[w.regione] = (byRegion[w.regione]||0) + (w.riconteggio||0); });
+  const regions = Object.entries(byRegion).sort((a,b) => b[1]-a[1]).slice(0, 10);
+  const maxR = regions[0]?.[1] || 1;
+
+  const byType = {};
+  inStock.forEach(w => { byType[w.tipo] = (byType[w.tipo]||0) + (w.riconteggio||0); });
+  const types = Object.entries(byType).sort((a,b) => b[1]-a[1]);
+  const maxT = types[0]?.[1] || 1;
+
+  const byVintage = {};
+  inStock.forEach(w => { if(w.vendemmia) byVintage[w.vendemmia] = (byVintage[w.vendemmia]||0) + (w.riconteggio||0); });
+  const vintages = Object.entries(byVintage).sort((a,b) => b[0]-a[0]).slice(0, 12);
+  const maxV = Math.max(...vintages.map(v => v[1]), 1);
+
+  const byQuad = {};
+  inStock.forEach(w => { if (w.quadrante) byQuad[w.quadrante] = (byQuad[w.quadrante]||0) + (w.riconteggio||0); });
+  const quads = Object.entries(byQuad).sort((a,b) => a[0].localeCompare(b[0], undefined, {numeric:true}));
+  const maxQ = Math.max(...quads.map(q => q[1]), 1);
+
+  // Stats storico: bottiglie smaltite = qtaIniziale (storico) + (qtaIniziale - riconteggio per stock)
+  const outList = wines.filter(w => !w.inStock && !w.deletedAt);
+  const consumedFromStorico = outList.reduce((s,w) => s + (w.qtaIniziale||0), 0);
+  const consumedFromStock = inStock.reduce((s,w) => s + Math.max(0, (w.qtaIniziale||0) - (w.riconteggio||0)), 0);
+  const totalConsumed = consumedFromStorico + consumedFromStock;
+  const consumedValue = outList.reduce((s,w) => s + (w.qtaIniziale||0)*(w.valore||0), 0)
+                     + inStock.reduce((s,w) => s + Math.max(0,(w.qtaIniziale||0)-(w.riconteggio||0))*(w.valore||0), 0);
+
+  document.getElementById('statsWrap').innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">Bottiglie in cantina</div></div>
+      <div class="stat-card"><div class="stat-val">${value.toFixed(0)}€</div><div class="stat-lbl">Valore attuale</div></div>
+      <div class="stat-card"><div class="stat-val">${avgPrice.toFixed(0)}€</div><div class="stat-lbl">Prezzo medio</div></div>
+      <div class="stat-card"><div class="stat-val">${inStock.length}</div><div class="stat-lbl">Etichette uniche</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--green)">${readyBottles}</div><div class="stat-lbl">🟢 Pronti da bere</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--amber)">${youngBottles}</div><div class="stat-lbl">🟠 Ancora giovani</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--muted-2)">${totalConsumed}</div><div class="stat-lbl">📚 Bott. smaltite totali</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--muted-2)">${consumedValue.toFixed(0)}€</div><div class="stat-lbl">💰 Valore smaltito</div></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Bottiglie per regione</div>
+      ${regions.map(([r,n]) => `
+        <div class="bar-row">
+          <div class="bar-label">${r}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(n/maxR*100).toFixed(0)}%"></div></div>
+          <div class="bar-count">${n}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Per tipo</div>
+      ${types.map(([t,n]) => `
+        <div class="bar-row">
+          <div class="bar-label">${t}</div>
+          <div class="bar-track"><div class="bar-fill gold" style="width:${(n/maxT*100).toFixed(0)}%"></div></div>
+          <div class="bar-count">${n}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Per quadrante (posizione)</div>
+      ${quads.map(([q,n]) => `
+        <div class="bar-row">
+          <div class="bar-label">${q}</div>
+          <div class="bar-track"><div class="bar-fill green" style="width:${(n/maxQ*100).toFixed(0)}%"></div></div>
+          <div class="bar-count">${n}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Per vendemmia</div>
+      ${vintages.map(([v,n]) => `
+        <div class="bar-row">
+          <div class="bar-label">${v}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(n/maxV*100).toFixed(0)}%"></div></div>
+          <div class="bar-count">${n}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="chart-card ai-config-wrap" style="margin-top:20px;">
+      <div class="chart-title">
+        🔗 Connessione + AI
+        <span class="ai-config-status ${isAIEnabled() ? 'ai-config-on' : 'ai-config-off'}">
+          ${isAIEnabled() ? '● Online' : '○ Non configurata'}
+        </span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+        ${isAIEnabled()
+          ? `App online: tutti i dati sono sul server Cloudflare e accessibili da qualsiasi dispositivo configurato. AI arricchisce i nuovi vini (~0,01–0,03€/vino).`
+          : `Configura URL e Token del tuo Cloudflare Worker per usare l'app. È necessario inserirli SU OGNI DISPOSITIVO (PC, iPhone, ecc.).`
+        }
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="text" id="aiUrlInput" placeholder="URL Worker (https://cantina-ai.tuonome.workers.dev)" value="${escapeHtml(getAIUrl())}"
+               style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:var(--ink);outline:none;">
+        <input type="password" id="aiTokenInput" placeholder="Token di autorizzazione" value="${escapeHtml(getAIToken())}"
+               style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'SF Mono',Menlo,monospace;font-size:12px;color:var(--ink);outline:none;">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <button class="btn-ghost" onclick="saveAIConfig()" style="color:var(--blue);border-color:rgba(122,171,220,0.3);">💾 Salva config</button>
+        ${isAIEnabled() ? `<button class="btn-ghost" onclick="testAI()">🧪 Testa AI</button>` : ''}
+        ${isAIEnabled() ? `<button class="btn-ghost" onclick="clearAIConfig()" style="color:var(--red-warn);border-color:rgba(224,112,112,0.3);">✕ Rimuovi</button>` : ''}
+      </div>
+      <div id="aiTestResult" style="margin-top:12px;font-size:12px;color:var(--muted);"></div>
+    </div>
+
+    ${isAIEnabled() ? `
+    <div class="chart-card" style="margin-top:20px;">
+      <div class="chart-title">🗂 Backup & Snapshot</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;">
+        Snapshot giornalieri automatici degli ultimi 30 giorni sul server Cloudflare. Puoi ripristinare uno snapshot in caso di errore o perdita dati.
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button class="btn-ghost" onclick="showSnapshots()">📋 Mostra snapshot</button>
+        <button class="btn-ghost" onclick="exportData()" style="color:var(--green);border-color:rgba(126,200,142,0.3);">📥 Backup JSON locale</button>
+      </div>
+      <div id="snapshotsList" style="margin-top:12px;"></div>
+    </div>
+    ` : ''}
+
+    <div class="chart-card" style="margin-top:20px;">
+      <div class="chart-title">⚙️ Esportazione</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;">
+        Puoi esportare la cantina in Excel (per fogli di calcolo) o in JSON (per backup completo). I dati sono sempre online: per ripristini usa la sezione Snapshot sopra.
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button class="btn-ghost" onclick="exportExcel()" style="color:var(--green);border-color:rgba(126,200,142,0.3);">📊 Esporta Excel</button>
+        <button class="btn-ghost" onclick="exportData()">📥 Esporta JSON</button>
+      </div>
+    </div>
+
+    <div style="margin-top:32px;padding:16px;text-align:center;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:var(--gold);opacity:0.5;letter-spacing:0.5px;">
+      ${APP_VERSION}<br>
+      <span style="color:var(--muted);font-style:italic;font-family:'Fraunces',serif;font-size:11px;letter-spacing:0;">Built with sweat and curiosity</span>
+    </div>
+  `;
+}
+
+// AI Configuration handlers
+async function saveAIConfig() {
+  const urlInput = document.getElementById('aiUrlInput');
+  const tokenInput = document.getElementById('aiTokenInput');
+  if (!urlInput || !tokenInput) return;
+  const url = urlInput.value.trim();
+  const token = tokenInput.value.trim();
+  if (url && !url.match(/^https:\/\//i)) {
+    showToast('⚠️ L\'URL deve iniziare con https://');
+    return;
+  }
+  if (url && !token) {
+    showToast('⚠️ Inserisci anche il Token');
+    return;
+  }
+  setAIUrl(url);
+  setAIToken(token);
+  if (url && token) {
+    showToast('✅ Configurazione salvata, carico i dati...');
+    // Tenta di caricare i dati dal server
+    const ok = await load();
+    if (ok) {
+      hideOfflineScreen();
+      render();
+      buildFilterPanels();
+      renderStats();
+      setConnStatus('ok');
+      showToast('⬇️ Database online caricato');
+    } else {
+      setConnStatus('error');
+      showToast('❌ Connessione fallita: verifica URL, Token e Worker');
+    }
+  } else {
+    showToast('🔌 Configurazione rimossa');
+    setConnStatus('unknown');
+    showOfflineScreen('Configurazione rimossa. Inserisci nuovamente URL e Token per continuare.');
+  }
+}
+
+function clearAIConfig() {
+  if (!confirm('Rimuovere configurazione di questo dispositivo?\n\nL\'app non potrà più funzionare finché non reinserisci URL e Token. I dati restano sul server.')) return;
+  setAIUrl('');
+  setAIToken('');
+  setConnStatus('unknown');
+  showToast('🔌 Configurazione rimossa');
+  showOfflineScreen('Configurazione rimossa. Inserisci nuovamente URL e Token per continuare.');
+}
+
+async function testAI() {
+  const resEl = document.getElementById('aiTestResult');
+  if (!resEl) return;
+  resEl.innerHTML = '<span style="color:var(--blue);">🧪 Test in corso... (può richiedere 10-15 secondi)</span>';
+  const testWine = {
+    azienda: 'Massolino',
+    bottiglia: 'Barolo',
+    vendemmia: 2017,
+    regione: 'Piemonte',
+    area: 'Langhe',
+    etichetta: 'DOCG',
+    tipo: 'Rosso',
+  };
+  const start = Date.now();
+  const result = await callAI(testWine);
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  if (result) {
+    const liv = { 1: 'specifica', 2: 'annata+zona', 3: 'generica' }[result.livello] || '?';
+    resEl.innerHTML = `<div style="color:var(--green);font-weight:500;">✅ Test riuscito (${elapsed}s) — Livello: ${liv}</div>
+      <div style="margin-top:6px;">Fonte: ${escapeHtml(result.fonte || 'N/D')}</div>
+      <div style="margin-top:4px;">Finestra: ${result.finestraBevuta.start}–${result.finestraBevuta.peak}–${result.finestraBevuta.end}</div>
+      <div style="margin-top:4px;">Abbinamenti: ${(result.abbinamenti || []).join(', ')}</div>
+      ${result.note ? `<div style="margin-top:4px;font-style:italic;">${escapeHtml(result.note)}</div>` : ''}`;
+  } else {
+    resEl.innerHTML = `<div style="color:var(--red-warn);">❌ Test fallito (${elapsed}s). Controlla: URL corretto, Token corretto, API key configurata come Secret nel Worker.</div>`;
+  }
+}
+
+// ─── SNAPSHOT BACKUP/RESTORE ───────────────────────────────
+async function showSnapshots() {
+  const el = document.getElementById('snapshotsList');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--muted);font-size:12px;">Caricamento...</div>';
+  try {
+    const data = await apiSnapshotsList();
+    const dates = data.snapshots || [];
+    if (dates.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px;font-style:italic;">Nessuno snapshot disponibile. Vengono creati automaticamente alla prima modifica di ogni giorno.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">${dates.length} snapshot disponibili (max 30 giorni)</div>
+      <div style="display:flex;flex-direction:column;gap:4px;max-height:280px;overflow-y:auto;">
+        ${dates.map(date => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px;">
+            <span style="font-family:'SF Mono',Menlo,monospace;color:var(--ink);">${date}</span>
+            <div style="display:flex;gap:6px;">
+              <button class="btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="downloadSnapshot('${date}')">📥 Scarica</button>
+              <button class="btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--amber);border-color:rgba(232,160,64,0.3);" onclick="restoreSnapshot('${date}')">♻️ Ripristina</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
+  } catch (err) {
+    el.innerHTML = `<div style="color:var(--red-warn);font-size:12px;">❌ Errore: ${err.message}</div>`;
+  }
+}
+
+async function downloadSnapshot(date) {
+  try {
+    const data = await apiSnapshotGet(date);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cantina_snapshot_${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`📥 Snapshot ${date} scaricato`);
+  } catch (err) {
+    showToast('❌ ' + err.message);
+  }
+}
+
+async function restoreSnapshot(date) {
+  if (!confirm(`Ripristinare lo snapshot del ${date}?\n\nTutte le modifiche fatte DOPO quella data andranno perse. Lo stato attuale viene salvato come snapshot di oggi prima del ripristino.`)) return;
+  try {
+    showToast('♻️ Ripristino in corso...');
+    await apiSnapshotRestore(date);
+    // Ricarica i dati dal server
+    await load();
+    render();
+    buildFilterPanels();
+    renderStats();
+    showToast(`✅ Cantina ripristinata allo stato del ${date}`);
+  } catch (err) {
+    showToast('❌ Ripristino fallito: ' + err.message);
+  }
+}
+
+// Data management
+function exportExcel() {
+  if (typeof XLSX === 'undefined') {
+    showToast('⚠️ Libreria Excel non caricata. Riprova tra un secondo.');
+    return;
+  }
+
+  const stock = wines.filter(w => w.inStock && !w.deletedAt);
+  const out = wines.filter(w => !w.inStock && !w.deletedAt);
+
+  // Helpers: build an array-of-arrays sheet matching original layout
+  // Row 1: empty
+  // Row 2: empty except totals at cols J, K
+  // Row 3: headers
+  // Row 4+: data
+  
+  const stockHeaders = ['Stato/Regione', 'Area', 'Azienda', 'Bottiglia', 'Marchio', 'Vendemmia', 'Tipo', 'Numerosità Iniziale', 'Valore [€]', 'Riconteggio', 'Valore Totale [€]', 'Conservazione', 'Note Acquisto', 'Quadrante'];
+  const outHeaders = ['Stato/Regione', 'Area', 'Azienda', 'Bottiglia', 'Marchio', 'Vendemmia', 'Tipo', 'Numerosità Iniziale', 'Valore [€]', 'Riconteggio', 'Valore Totale [€]', 'Conservazione', 'Note Acquisto', 'Utilizzo'];
+
+  const buildSheet = (list, headers, isStock) => {
+    const n = list.length;
+    const lastRow = 3 + n; // row 4..(3+n) in 1-based, end col letter depends
+    const rows = [];
+    // Row 1: empty (14 cols)
+    rows.push(new Array(headers.length).fill(null));
+    // Row 2: totals at col J (index 9) and K (index 10)
+    const totalRow = new Array(headers.length).fill(null);
+    totalRow[9] = n > 0 ? { f: `SUM(J4:J${lastRow})` } : 0;
+    totalRow[10] = n > 0 ? { f: `SUMPRODUCT(J4:J${lastRow},I4:I${lastRow})` } : 0;
+    rows.push(totalRow);
+    // Row 3: headers
+    rows.push(headers);
+    // Rows 4+: data
+    list.forEach((w, i) => {
+      const r = i + 4; // Excel row (1-based)
+      const row = [
+        w.regione || '',
+        w.area || '',
+        w.azienda || '',
+        w.bottiglia || '',
+        w.etichetta || '',
+        w.vendemmia || '',
+        w.tipo || '',
+        w.qtaIniziale || 0,
+        w.valore || 0,
+        w.riconteggio || 0,
+        { f: `J${r}*I${r}` }, // formula Valore Totale
+        w.conservazione || '',
+        w.noteAcquisto || '',
+        isStock ? (w.quadrante || '') : (w.utilizzo || ''),
+      ];
+      rows.push(row);
+    });
+    return rows;
+  };
+
+  const wb = XLSX.utils.book_new();
+
+  const stockData = buildSheet(stock, stockHeaders, true);
+  const wsStock = XLSX.utils.aoa_to_sheet(stockData);
+  // Column widths similar to original
+  wsStock['!cols'] = [
+    { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 30 }, { wch: 10 },
+    { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 11 }, { wch: 11 },
+    { wch: 14 }, { wch: 22 }, { wch: 32 }, { wch: 10 },
+  ];
+  XLSX.utils.book_append_sheet(wb, wsStock, 'CURRENT STOCK');
+
+  const outData = buildSheet(out, outHeaders, false);
+  const wsOut = XLSX.utils.aoa_to_sheet(outData);
+  wsOut['!cols'] = [
+    { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 30 }, { wch: 10 },
+    { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 11 }, { wch: 11 },
+    { wch: 14 }, { wch: 22 }, { wch: 32 }, { wch: 20 },
+  ];
+  XLSX.utils.book_append_sheet(wb, wsOut, 'OUT OF STOCK');
+
+  // Filename with current date
+  const d = new Date();
+  const datestr = d.getFullYear().toString() +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    String(d.getDate()).padStart(2, '0');
+  XLSX.writeFile(wb, `${datestr}_CANTINA.xlsx`);
+  showToast('✅ Excel scaricato');
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(wines, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cantina_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✅ Backup scaricato');
+}
+
+// importData/resetDatabase rimosse in v22 (online-only).
+// Per ripristini usare: Statistiche → Snapshot → Ripristina
+
+// ═══════════════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════════════
+function setTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // Toggle body class to hide position-related UI when in storico
+  document.body.classList.toggle('tab-storico', tab === 'storico');
+  // If we are leaving to storico while sorting by quadrante, fallback
+  if (tab === 'storico') {
+    const sel = document.getElementById('sortSelect');
+    if (sel && sel.value === 'quadrante_asc') sel.value = 'vendemmia_asc';
+  }
+  if (tab === 'stats') {
+    document.getElementById('page-stats').classList.add('active');
+    renderStats();
+  } else {
+    document.getElementById('page-stock').classList.add('active');
+    applyFilters();
+  }
+}
+
+function setSort(key) {
+  const sel = document.getElementById('sortSelect');
+  const cur = sel.value;
+  const [curKey, curDir] = cur.split('_');
+  const newDir = (curKey === key && curDir === 'asc') ? 'desc' : 'asc';
+  const newVal = key + '_' + newDir;
+  // If option exists use it, else fallback
+  const hasOpt = Array.from(sel.options).some(o => o.value === newVal);
+  sel.value = hasOpt ? newVal : (key + '_asc');
+  applyFilters();
+}
+
+function toggleFilters() {
+  document.getElementById('filterPanel').classList.toggle('open');
+  document.getElementById('filterOverlay').classList.toggle('open');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+// Carica sempre i dati (servono anche per login check non bypassable via CSS)
+load();
+
+// Inizializza UI solo dopo auth check
+async function initApp() {
+  // Stato connessione iniziale
+  setConnStatus('unknown');
+
+  if (!isAPIConfigured()) {
+    // Nessuna config → mostra solo Statistiche con il pannello config
+    showOfflineScreen('Configura URL Worker e Token nelle impostazioni per accedere ai tuoi vini.');
+    return;
+  }
+
+  // Carica i vini dal server
+  const ok = await load();
+  if (!ok) {
+    showOfflineScreen('Connessione assente o Worker non raggiungibile. Riprova quando torni online.');
+    return;
+  }
+
+  hideOfflineScreen();
+  buildFilterPanels();
+  applyFilters();
+  setConnStatus('ok');
+
+  // Pull silenzioso ogni 15s per vedere modifiche fatte da altri device
+  setInterval(async () => {
+    if (!isAPIConfigured()) return;
+    const wasOk = await load();
+    if (wasOk) {
+      render();
+      buildFilterPanels();
+    }
+  }, 15000);
+
+  // Pull immediato al focus (riapertura PWA da background, switch tab)
+  const onFocus = async () => {
+    if (!isAPIConfigured()) return;
+    const wasOk = await load();
+    if (wasOk) {
+      render();
+      buildFilterPanels();
+    }
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) onFocus(); });
+  window.addEventListener('focus', onFocus);
+}
+
+// Schermata offline / non configurato
+function showOfflineScreen(message) {
+  let el = document.getElementById('offlineScreen');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'offlineScreen';
+    el.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div style="font-size:48px;margin-bottom:16px;">🔌</div>
+    <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--ink);margin-bottom:12px;">Connessione richiesta</div>
+    <div style="font-size:14px;color:var(--ink-soft);max-width:420px;line-height:1.5;margin-bottom:24px;">${message}</div>
+    <button onclick="retryConnection()" style="padding:10px 20px;background:var(--wine);color:white;border:none;border-radius:8px;font-family:inherit;font-size:14px;cursor:pointer;">🔄 Riprova</button>
+    <button onclick="goToSettings()" style="margin-top:10px;padding:10px 20px;background:transparent;color:var(--ink-soft);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;cursor:pointer;">⚙️ Impostazioni</button>
+  `;
+  el.style.display = 'flex';
+}
+function hideOfflineScreen() {
+  const el = document.getElementById('offlineScreen');
+  if (el) el.style.display = 'none';
+}
+async function retryConnection() {
+  hideOfflineScreen();
+  await initApp();
+}
+function goToSettings() {
+  hideOfflineScreen();
+  // Mostra la UI base, poi vai alla tab Statistiche dove c'è la config
+  const overlay = document.getElementById('overlay');
+  if (overlay) overlay.classList.remove('open');
+  setTab('stats');
+}
+
+if (checkAuth()) {
+  initApp();
+} else {
+  const origDoLogin = doLogin;
+  window.doLogin = function() {
+    const wasLoggedOut = document.getElementById('loginScreen').classList.contains('hidden') === false;
+    origDoLogin();
+    if (wasLoggedOut && document.getElementById('loginScreen').classList.contains('hidden')) {
+      initApp();
+    }
+  };
+}
+</script>
+</body>
+</html>
