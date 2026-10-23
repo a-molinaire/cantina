@@ -1,0 +1,11 @@
+// Configurazione del Worker cantina-ai, ricostruita da Cloudflare il 2026-10-23.
+// I segreti (ANTHROPIC_API_KEY, CANTINA_TOKEN) restano su Cloudflare: non vanno mai scritti qui.
+{
+  "name": "cantina-ai",
+  "main": "worker.js",
+  "compatibility_date": "2026-04-21",
+  "workers_dev": true,
+  "kv_namespaces": [
+    { "binding": "CANTINA_DB", "id": "cd8096b3df154ec89e43a15c5a81625d" }
+  ]
+}

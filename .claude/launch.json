@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "worker-locale",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "wrangler@4", "dev", "-c", "worker/wrangler.test.jsonc", "--port", "8787"],
+      "port": 8787
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "http-server@14.1.1", ".", "-p", "5173", "-c-1"],
+      "port": 5173
+    }
+  ]
+}

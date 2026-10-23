@@ -1,0 +1,7 @@
+# Segreti e backup: mai su GitHub (repo pubblico)
+.env
+backup/
+.wrangler/
+worker/.wrangler/
+node_modules/
+worker/.dev.vars

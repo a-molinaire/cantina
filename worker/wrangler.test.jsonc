@@ -1,0 +1,10 @@
+// Solo per prove in locale (npm run / wrangler dev): KV finto, nessun dato reale.
+// L'id inesistente fa sì che nessun comando possa toccare l'archivio vero per errore.
+{
+  "name": "cantina-ai-test",
+  "main": "worker.js",
+  "compatibility_date": "2026-04-21",
+  "kv_namespaces": [
+    { "binding": "CANTINA_DB", "id": "local-test-cantina" }
+  ]
+}
