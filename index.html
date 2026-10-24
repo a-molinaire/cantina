@@ -664,6 +664,13 @@ td { padding: 11px 10px; font-size: 13px; vertical-align: middle; color: var(--i
 .mappa-reg:hover { opacity: 0.8; }
 .mappa-num { fill: #fff; font-size: 13px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,0.45); stroke-width: 3px; }
 .consumi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.chart-box-basso { height: 200px; }
+.elenco-extra { color: var(--muted); }
+.elenco-anno { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.elenco-gruppo { margin-bottom: 10px; }
+.regioni-elenco { margin-top: 14px; font-size: 13px; line-height: 1.9; }
+.regione-riga { display: block; color: var(--ink); text-decoration: none; }
+.regione-riga:hover strong { color: var(--gold); }
 /* Scaffale Kallax: telaio chiaro, caselle quadrate */
 .kallax {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
@@ -968,7 +975,7 @@ body.tab-storico .sort-opt-pos {
 // ═══════════════════════════════════════════════════════════
 // VERSION
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v30 — Ottobre 2026';
+const APP_VERSION = 'v31 — Ottobre 2026';
 
 // Accesso: il vero lucchetto è il token del Worker. Niente password nel codice.
 // Il dispositivo è "collegato" quando ha URL Worker + token salvati in localStorage.
@@ -2611,15 +2618,6 @@ function renderStats() {
   }).reduce((s,w) => s + (w.riconteggio||0), 0);
   const youngBottles = inStock.filter(w => getDWStatus(w.finestraBevuta, now).key === 'young').reduce((s,w) => s + (w.riconteggio||0), 0);
 
-  const byType = {};
-  inStock.forEach(w => { byType[w.tipo] = (byType[w.tipo]||0) + (w.riconteggio||0); });
-  const types = Object.entries(byType).sort((a,b) => b[1]-a[1]);
-  const maxT = types[0]?.[1] || 1;
-
-  const byVintage = {};
-  inStock.forEach(w => { if(w.vendemmia) byVintage[w.vendemmia] = (byVintage[w.vendemmia]||0) + (w.riconteggio||0); });
-  const vintages = Object.entries(byVintage).sort((a,b) => b[0]-a[0]).slice(0, 12);
-  const maxV = Math.max(...vintages.map(v => v[1]), 1);
 
 
   // Stats storico: bottiglie smaltite = qtaIniziale (storico) + (qtaIniziale - riconteggio per stock)
@@ -2638,8 +2636,8 @@ function renderStats() {
       <div class="stat-card"><div class="stat-val">${inStock.length}</div><div class="stat-lbl">Etichette uniche</div></div>
       <div class="stat-card"><div class="stat-val" style="color:var(--green)">${readyBottles}</div><div class="stat-lbl">🟢 Pronti da bere</div></div>
       <div class="stat-card"><div class="stat-val" style="color:var(--amber)">${youngBottles}</div><div class="stat-lbl">🟠 Ancora giovani</div></div>
-      <div class="stat-card"><div class="stat-val" style="color:var(--muted-2)">${totalConsumed}</div><div class="stat-lbl">📚 Bott. smaltite totali</div></div>
-      <div class="stat-card"><div class="stat-val" style="color:var(--muted-2)">${consumedValue.toFixed(0)}€</div><div class="stat-lbl">💰 Valore smaltito</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--muted-2)">${totalConsumed}</div><div class="stat-lbl">📚 Bottiglie già bevute</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--muted-2)">${consumedValue.toFixed(0)}€</div><div class="stat-lbl" title="Prezzo delle bottiglie già bevute o uscite dalla cantina: non è il valore della cantina">💰 Valore già bevuto</div></div>
     </div>
 
     <div class="chart-card">
@@ -2657,18 +2655,13 @@ function renderStats() {
     <div class="chart-card">
       <div class="chart-title">Bottiglie per regione <span class="stats-scope-badge">🍷 Solo cantina</span></div>
       <div class="mappa-wrap" id="mappaItalia"><div class="chart-sub">Caricamento mappa…</div></div>
-      <div class="chart-dettaglio" id="mappaDettaglio">Tocca una regione per vedere i vini.</div>
-      <div id="esteroWrap"></div>
+      <div class="regioni-elenco" id="esteroWrap"></div>
+      <div class="chart-dettaglio" id="mappaDettaglio">Tocca una regione, sulla mappa o nell'elenco, per vedere i vini.</div>
     </div>
 
     <div class="chart-card">
       <div class="chart-title">Per tipo <span class="stats-scope-badge">🍷 Solo cantina</span></div>
-      ${types.map(([t,n]) => `
-        <div class="bar-row">
-          <div class="bar-label">${t}</div>
-          <div class="bar-track"><div class="bar-fill gold" style="width:${(n/maxT*100).toFixed(0)}%"></div></div>
-          <div class="bar-count">${n}</div>
-        </div>`).join('')}
+      <div class="chart-box chart-box-basso"><canvas id="chartTipo"></canvas></div>
     </div>
 
     <div class="chart-card">
@@ -2679,12 +2672,8 @@ function renderStats() {
 
     <div class="chart-card">
       <div class="chart-title">Per vendemmia <span class="stats-scope-badge">🍷 Solo cantina</span></div>
-      ${vintages.map(([v,n]) => `
-        <div class="bar-row">
-          <div class="bar-label">${v}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${(n/maxV*100).toFixed(0)}%"></div></div>
-          <div class="bar-count">${n}</div>
-        </div>`).join('')}
+      <div class="chart-box"><canvas id="chartVendemmia"></canvas></div>
+      <div class="chart-dettaglio" id="vendemmiaDettaglio">Tocca un anno per vedere i vini di quella vendemmia.</div>
     </div>
 
     <div class="chart-card ai-config-wrap" style="margin-top:20px;">
@@ -2745,6 +2734,8 @@ function renderStats() {
     </div>
   `;
   disegnaMaturita(inStock);
+  disegnaTipi(inStock);
+  disegnaVendemmie(inStock);
   disegnaMappa(inStock);
   caricaConsumi(total);
 }
@@ -2760,6 +2751,123 @@ const STATI_MATURITA = [
   { key: 'old', label: 'Oltre la finestra', colore: '#E07070' },
 ];
 let graficoMaturita = null;
+let graficoTipo = null;
+let graficoVendemmia = null;
+
+const FAMIGLIE = [
+  { key: 'rossi', label: 'Rossi', colore: '#C4455E' },
+  { key: 'bianchi', label: 'Bianchi', colore: '#E2BF7A' },
+  { key: 'rosati', label: 'Rosati', colore: '#E59AA8' },
+  { key: 'bollicine', label: 'Bollicine', colore: '#F0E8D8' },
+];
+const coloreFamiglia = tipo => FAMIGLIE.find(f => f.key === famigliaTipo(tipo)).colore;
+
+// Barre verticali con lo stile dell'app
+function opzioniBarre({ impilate = false, legenda = true, onClick } = {}) {
+  const assi = { ticks: { color: '#8A7D6E', font: { size: 10 } } };
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    scales: {
+      x: { ...assi, stacked: impilate, grid: { display: false } },
+      y: { ...assi, stacked: impilate, grace: '12%', ticks: { ...assi.ticks, precision: 0 }, grid: { color: 'rgba(255,240,220,0.06)' } },
+    },
+    plugins: {
+      legend: { display: legenda, position: 'bottom', labels: { color: '#C9BCA8', boxWidth: 10, font: { size: 11 } } },
+      tooltip: { mode: 'index', intersect: false, filter: voce => voce.raw > 0 },
+    },
+    onClick,
+  };
+}
+// Scrive il totale sopra ogni colonna (somma delle serie impilate)
+const pluginTotali = {
+  id: 'totali',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const metas = chart.data.datasets.map((_, i) => chart.getDatasetMeta(i)).filter(m => !m.hidden);
+    ctx.save();
+    ctx.font = '600 11px Inter, sans-serif';
+    ctx.fillStyle = '#C9BCA8';
+    ctx.textAlign = 'center';
+    chart.data.labels.forEach((_, j) => {
+      const tot = metas.reduce((s, m) => s + (chart.data.datasets[m.index].data[j] || 0), 0);
+      if (!tot) return;
+      const y = Math.min(...metas.map(m => m.data[j].y));
+      ctx.fillText(tot, metas[0].data[j].x, y - 5);
+    });
+    ctx.restore();
+  },
+};
+
+// Indice della colonna sotto il dito, anche toccando tra una barra e l'altra
+const colonnaToccata = (evt, chart, n) => {
+  const i = Math.round(chart.scales.x.getValueForPixel(evt.x));
+  return i >= 0 && i < n ? i : -1;
+};
+
+// Elenco leggibile: pallino colorato, nome cliccabile, dettagli
+function elencoViniHtml(vini, colore, dettagli) {
+  return vini.map(w => `<i class="kallax-dot" style="background:${colore(w)}"></i><a href="#" onclick="openModal('${w.id}');return false">${escapeHtml(w.bottiglia)} ${w.vendemmia || ''}</a>` +
+    `<span class="elenco-extra"> · ${dettagli(w)}</span>`).join('<br>');
+}
+const bottiglieTxt = n => n === 1 ? '1 bottiglia' : `${n} bottiglie`;
+
+function disegnaTipi(inStock) {
+  const canvas = document.getElementById('chartTipo');
+  if (!canvas || typeof Chart === 'undefined') return;
+  const perTipo = {};
+  inStock.forEach(w => { const t = w.tipo || '—'; perTipo[t] = (perTipo[t] || 0) + (w.riconteggio || 0); });
+  const tipi = Object.entries(perTipo).sort((a, b) => b[1] - a[1]);
+  if (graficoTipo) graficoTipo.destroy();
+  graficoTipo = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: tipi.map(([t]) => t),
+      datasets: [{ label: 'Bottiglie', data: tipi.map(([, n]) => n), backgroundColor: tipi.map(([t]) => coloreFamiglia(t)), borderRadius: 3 }],
+    },
+    options: opzioniBarre({ legenda: false }),
+    plugins: [pluginTotali],
+  });
+}
+
+// Bottiglie per vendemmia, divise tra rossi, bianchi, rosati e bollicine
+function disegnaVendemmie(inStock) {
+  const canvas = document.getElementById('chartVendemmia');
+  if (!canvas || typeof Chart === 'undefined') return;
+  const anni = [...new Set(inStock.map(w => w.vendemmia).filter(Boolean))].sort((a, b) => a - b);
+  const senzaAnno = inStock.filter(w => !w.vendemmia);
+  const colonne = senzaAnno.length ? [...anni, 'S.A.'] : anni;
+  const viniDi = col => col === 'S.A.' ? senzaAnno : inStock.filter(w => w.vendemmia === col);
+  if (graficoVendemmia) graficoVendemmia.destroy();
+  graficoVendemmia = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: colonne,
+      datasets: FAMIGLIE.map(f => ({
+        label: f.label,
+        data: colonne.map(c => viniDi(c).filter(w => famigliaTipo(w.tipo) === f.key).reduce((s, w) => s + (w.riconteggio || 0), 0)),
+        backgroundColor: f.colore,
+        borderRadius: 2,
+      })).filter(d => d.data.some(Boolean)),
+    },
+    options: opzioniBarre({
+      impilate: true,
+      onClick: (evt, el, chart) => {
+        const i = colonnaToccata(evt, chart, colonne.length);
+        if (i < 0) return;
+        const vini = viniDi(colonne[i]);
+        const n = vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
+        document.getElementById('vendemmiaDettaglio').innerHTML =
+          `<strong>${colonne[i] === 'S.A.' ? 'Senza annata' : 'Vendemmia ' + colonne[i]}: ${bottiglieTxt(n)}</strong> (${ripartoTipi(vini)})<br>` +
+          elencoViniHtml(vini, w => coloreFamiglia(w.tipo), w => `${w.tipo}${w.riconteggio > 1 ? ' · ' + w.riconteggio + ' bott.' : ''}`);
+      },
+    }),
+    plugins: [pluginTotali],
+  });
+  if (senzaAnno.length) document.getElementById('vendemmiaDettaglio').textContent =
+    'Tocca un anno per vedere i vini di quella vendemmia. S.A. = senza annata.';
+}
 
 // Per ogni anno dei prossimi 15: quante bottiglie sono in ciascuno stato
 function disegnaMaturita(inStock) {
@@ -2804,21 +2912,32 @@ function disegnaMaturita(inStock) {
       },
       plugins: {
         legend: { position: 'bottom', labels: { color: '#C9BCA8', boxWidth: 10, font: { size: 11 } } },
-        tooltip: { mode: 'index', intersect: false },
+        tooltip: { mode: 'index', intersect: false, filter: voce => voce.raw > 0 },
       },
       onClick: (evt, elementi, chart) => {
-        // L'anno sotto il dito, anche toccando tra una barra e l'altra
-        const indice = Math.round(chart.scales.x.getValueForPixel(evt.x));
-        if (!(indice >= 0 && indice < anni.length)) return;
-        const anno = anni[indice];
-        const vini = conFinestra.filter(w => getDWStatus(w.finestraBevuta, anno).key === 'peak');
-        document.getElementById('maturitaDettaglio').innerHTML = vini.length
-          ? `<strong>All'apice nel ${anno}:</strong> ` + vini.map(w =>
-              `<a href="#" onclick="openModal('${w.id}');return false">${escapeHtml(w.bottiglia)} ${w.vendemmia || ''}</a> (${w.riconteggio})`).join(', ')
-          : `Nessun vino all'apice nel ${anno}.`;
+        const i = colonnaToccata(evt, chart, anni.length);
+        if (i >= 0) dettaglioMaturita(conFinestra, anni[i]);
       },
     },
   });
+  dettaglioMaturita(conFinestra, oggi);
+}
+
+// Sotto la curva: i vini di un anno raggruppati per stato, dal più urgente
+function dettaglioMaturita(conFinestra, anno) {
+  const ordine = ['old', 'mature', 'peak', 'ready', 'young'];
+  const gruppi = ordine.map(key => {
+    const stato = STATI_MATURITA.find(s => s.key === key);
+    const vini = conFinestra.filter(w => getDWStatus(w.finestraBevuta, anno).key === key)
+      .sort((a, b) => a.finestraBevuta.end - b.finestraBevuta.end);
+    if (!vini.length) return '';
+    const n = vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
+    return `<div class="elenco-gruppo"><strong style="color:${stato.colore}">${stato.label}: ${bottiglieTxt(n)}</strong><br>` +
+      elencoViniHtml(vini, () => stato.colore, w => `finestra ${w.finestraBevuta.start}–${w.finestraBevuta.end}${w.riconteggio > 1 ? ' · ' + w.riconteggio + ' bott.' : ''}`) +
+      '</div>';
+  }).join('');
+  document.getElementById('maturitaDettaglio').innerHTML =
+    `<div class="elenco-anno">Nel <strong>${anno}</strong>${anno === new Date().getFullYear() ? ' (oggi)' : ''} · tocca un altro anno del grafico per cambiarlo</div>` + gruppi;
 }
 
 // Scaffale: Kallax 2×2 impilati = 2 colonne (Sx, Dx) × 6 caselle, la casella 1 è in basso.
@@ -2916,25 +3035,36 @@ async function disegnaMappa(inStock) {
     ${datiMappa.regioni.filter(r => perCodice[r.codice]).map(r =>
       `<text x="${r.x}" y="${r.y}" class="mappa-num">${bottiglie(perCodice[r.codice])}</text>`).join('')}
   </svg>`;
-  wrap.querySelectorAll('.mappa-reg').forEach(p => p.addEventListener('click', () => {
-    const r = datiMappa.regioni.find(x => x.codice === p.dataset.codice);
-    const vini = perCodice[r.codice] || [];
-    const nome = r.nome.split('/')[0];
-    document.getElementById('mappaDettaglio').innerHTML = vini.length
-      ? `<strong>${escapeHtml(nome)}: ${bottiglie(vini)} bottiglie</strong> (${ripartoTipi(vini)})<br>` +
-        vini.map(w => `<a href="#" onclick="openModal('${w.id}');return false">${escapeHtml(w.bottiglia)} ${w.vendemmia || ''}</a>`).join(', ')
-      : `${escapeHtml(nome)}: nessuna bottiglia in cantina.`;
-  }));
+  // Elenco sotto la mappa: regioni italiane per numero di bottiglie, poi l'estero
+  const nomeRegione = codice => datiMappa.regioni.find(x => x.codice === codice).nome.split('/')[0];
+  const righe = [
+    ...Object.entries(perCodice).map(([codice, vini]) => ({ nome: nomeRegione(codice), vini, colore: colore(bottiglie(vini)), estero: false })),
+    ...Object.entries(estero).map(([paese, vini]) => ({ nome: paese, vini, colore: 'var(--blue)', estero: true })),
+  ].sort((a, b) => (a.estero - b.estero) || (bottiglie(b.vini) - bottiglie(a.vini)));
+  elencoRegioni = righe;
+  document.getElementById('esteroWrap').innerHTML = righe.map((r, i) => `
+    ${r.estero && !righe[i - 1]?.estero ? '<div class="elenco-anno" style="margin-top:10px">🌎 Estero</div>' : ''}
+    <a href="#" class="regione-riga" onclick="mostraRegione(${i});return false">
+      <i class="kallax-dot" style="background:${r.colore}"></i>
+      <strong>${escapeHtml(r.nome)}</strong>
+      <span class="elenco-extra"> · ${bottiglieTxt(bottiglie(r.vini))} · ${ripartoTipi(r.vini)}</span>
+    </a>`).join('');
 
-  const righe = Object.entries(estero).sort((a, b) => bottiglie(b[1]) - bottiglie(a[1]));
-  document.getElementById('esteroWrap').innerHTML = righe.length ? `
-    <div class="chart-sub" style="margin-top:14px"><strong>🌎 Estero</strong></div>
-    ${righe.map(([paese, vini]) => `
-      <div class="bar-row">
-        <div class="bar-label">${escapeHtml(paese)}</div>
-        <div class="bar-track" style="background:none;color:var(--muted);font-size:11px;height:auto">${ripartoTipi(vini)}</div>
-        <div class="bar-count">${bottiglie(vini)}</div>
-      </div>`).join('')}` : '';
+  wrap.querySelectorAll('.mappa-reg').forEach(p => p.addEventListener('click', () => {
+    const i = righe.findIndex(r => !r.estero && r.nome === nomeRegione(p.dataset.codice));
+    if (i >= 0) mostraRegione(i);
+    else document.getElementById('mappaDettaglio').textContent = `${nomeRegione(p.dataset.codice)}: nessuna bottiglia in cantina.`;
+  }));
+}
+
+let elencoRegioni = [];
+function mostraRegione(i) {
+  const r = elencoRegioni[i];
+  const n = r.vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
+  const box = document.getElementById('mappaDettaglio');
+  box.innerHTML = `<strong>${escapeHtml(r.nome)}: ${bottiglieTxt(n)}</strong> (${ripartoTipi(r.vini)})<br>` +
+    elencoViniHtml(r.vini, w => coloreFamiglia(w.tipo), w => `${w.tipo}${w.area && w.area !== w.regione ? ' · ' + escapeHtml(w.area) : ''}${w.riconteggio > 1 ? ' · ' + w.riconteggio + ' bott.' : ''}`);
+  box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 // Ritmo di consumo: stima dagli snapshot (bottiglie che calano) + date registrate dal 24/10/2026
