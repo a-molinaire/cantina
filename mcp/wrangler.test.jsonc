@@ -1,0 +1,12 @@
+// Solo per prove in locale: parla con il Worker di prova su localhost:8787, KV finto.
+{
+  "name": "cantina-mcp-test",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "local-test-oauth" }],
+  "vars": {
+    "PUBLIC_URL": "http://localhost:8788",
+    "API_URL": "http://localhost:8787"
+  }
+}

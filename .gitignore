@@ -5,3 +5,6 @@ backup/
 worker/.wrangler/
 node_modules/
 worker/.dev.vars
+mcp/.dev.vars
+mcp/node_modules/
+mcp/.wrangler/

@@ -1,0 +1,16 @@
+// Connettore MCP della cantina, pubblicato su https://cantina-mcp.molinaire.workers.dev/mcp
+// Legge e scrive i vini passando dal Worker cantina-ai (service binding), che resta l'unico
+// a toccare l'archivio. Segreto richiesto: CANTINA_TOKEN (lo stesso token dell'app).
+{
+  "name": "cantina-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "42b17611a7fb4154ac782864f03e2344" }],
+  "services": [{ "binding": "CANTINA_API", "service": "cantina-ai" }],
+  "vars": {
+    "PUBLIC_URL": "https://cantina-mcp.molinaire.workers.dev"
+  },
+  "observability": { "enabled": true }
+}
