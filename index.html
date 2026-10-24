@@ -975,7 +975,7 @@ body.tab-storico .sort-opt-pos {
 // ═══════════════════════════════════════════════════════════
 // VERSION
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v32 — Ottobre 2026';
+const APP_VERSION = 'v33 — Ottobre 2026';
 
 // Accesso: il vero lucchetto è il token del Worker. Niente password nel codice.
 // Il dispositivo è "collegato" quando ha URL Worker + token salvati in localStorage.
@@ -3022,8 +3022,9 @@ async function disegnaMappa(inStock) {
   });
   const bottiglie = vini => vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
   const max = Math.max(1, ...Object.values(perCodice).map(bottiglie));
-  // Colore dal fondo al vino, in scala radice per non schiacciare le regioni con poche bottiglie
-  const colore = n => n ? `rgba(196,69,94,${(0.18 + 0.82 * Math.sqrt(n / max)).toFixed(2)})` : 'var(--surface)';
+  // Scala di azzurro (neutra: il rosso farebbe pensare ai soli vini rossi),
+  // in scala radice per non schiacciare le regioni con poche bottiglie
+  const colore = n => n ? `rgba(122,171,220,${(0.18 + 0.82 * Math.sqrt(n / max)).toFixed(2)})` : 'var(--surface)';
 
   wrap.innerHTML = `<svg viewBox="0 0 ${datiMappa.larghezza} ${datiMappa.altezza}" class="mappa-svg" role="img" aria-label="Bottiglie per regione">
     ${datiMappa.regioni.map(r => {
