@@ -77,22 +77,37 @@ const campiVino = {
   abbinamenti: z.array(z.string()).optional().describe('3-6 abbinamenti gastronomici in italiano'),
   noteAI: z.string().optional().describe('Breve scheda: annata, stile, temperatura di servizio'),
   fonti: z.string().optional().describe('Fonti consultate per finestra e abbinamenti'),
+  livello: z
+    .number()
+    .int()
+    .min(1)
+    .max(3)
+    .optional()
+    .describe(
+      'Affidabilità della finestra: 1 = fonti specifiche su questo vino e annata, ' +
+        '2 = dati di annata/denominazione o vini analoghi, 3 = stima generica sul vitigno'
+    ),
 };
 
-// Converte i campi "parlanti" dello strumento nei campi del database dell'app
+// Converte i campi "parlanti" dello strumento nei campi del database dell'app.
+// Una finestra di bevuta scritta da Claude chiude anche l'eventuale attesa in coda.
 function versoDB(input: Record<string, unknown>): Partial<Wine> {
-  const { noteAI, fonti, finestraBevuta, ...resto } = input as {
+  const { noteAI, fonti, finestraBevuta, livello, ...resto } = input as {
     noteAI?: string;
     fonti?: string;
     finestraBevuta?: Finestra;
+    livello?: number;
   } & Partial<Wine>;
   const out: Partial<Wine> = { ...resto };
   if (finestraBevuta) {
     out.finestraBevuta = finestraBevuta;
     out.aiEnriched = true;
-    out.aiLivello = fonti ? 1 : 3;
+    out.aiLivello = livello ?? (fonti ? 2 : 3);
     out.aiFonte = fonti || 'Claude';
     out.aiTimestamp = new Date().toISOString();
+    out.aiStato = 'claude';
+    out.aiCodaDal = null;
+    out.aiErrore = null;
     out.dwSource = null;
   }
   if (noteAI !== undefined) out.aiNote = noteAI;
@@ -177,6 +192,44 @@ export function createServer() {
   );
 
   server.registerTool(
+    'vini_da_arricchire',
+    {
+      title: 'Vini da arricchire',
+      description:
+        "Vini in coda per l'arricchimento (finestra di bevuta, abbinamenti, scheda), con i dati utili alla ricerca. " +
+        'Per ciascuno cerca sul web come un sommelier e salva con modifica_vino passando finestraBevuta, abbinamenti, ' +
+        'noteAI, fonti e livello: così il vino esce dalla coda. Con anche_senza_finestra=true elenca anche i vini ' +
+        'che non hanno mai avuto una finestra di bevuta.',
+      inputSchema: z.object({
+        anche_senza_finestra: z.boolean().optional().describe('Predefinito: false'),
+      }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ anche_senza_finestra = false }) => {
+      const vini = (await getWines()).filter(
+        w => w.aiStato === 'coda' || w.aiStato === 'errore' || (anche_senza_finestra && !w.finestraBevuta)
+      );
+      return json({
+        anno: new Date().getFullYear(),
+        da_arricchire: vini.length,
+        vini: vini.map(w => ({
+          id: w.id,
+          azienda: w.azienda,
+          bottiglia: w.bottiglia,
+          vendemmia: w.vendemmia ?? null,
+          tipo: w.tipo,
+          regione: w.regione || '',
+          area: w.area || '',
+          etichetta: w.etichetta || '',
+          note: w.utilizzo || '',
+          in_coda_dal: w.aiCodaDal || null,
+          errore_precedente: w.aiErrore || null,
+        })),
+      });
+    }
+  );
+
+  server.registerTool(
     'dettaglio_vino',
     {
       title: 'Dettaglio di un vino',
@@ -240,7 +293,9 @@ export function createServer() {
         if (dati.noteAcquisto) {
           patch.noteAcquisto = esistente.noteAcquisto ? esistente.noteAcquisto + ' | ' + dati.noteAcquisto : dati.noteAcquisto;
         }
-        if (dati.finestraBevuta) Object.assign(patch, versoDB({ finestraBevuta: dati.finestraBevuta, fonti: input.fonti }));
+        if (dati.finestraBevuta) {
+          Object.assign(patch, versoDB({ finestraBevuta: dati.finestraBevuta, fonti: input.fonti, livello: input.livello }));
+        }
         if (dati.abbinamenti) patch.abbinamenti = dati.abbinamenti;
         const w = await patchWine(esistente.id, patch);
         return json({ esito: 'vino rimesso in cantina dallo storico', vino: riga(w) });
@@ -257,6 +312,8 @@ export function createServer() {
         noteAcquisto: '',
         utilizzo: '',
         conservazione: 'Conservato in cantina',
+        // Senza finestra il vino entra nella coda di arricchimento, come dall'app
+        ...(dati.finestraBevuta ? {} : { aiStato: 'coda', aiCodaDal: new Date().toISOString() }),
         ...dati,
         qtaIniziale: qta,
         riconteggio: qta,
@@ -265,7 +322,7 @@ export function createServer() {
       return json({
         esito: 'nuovo vino aggiunto',
         vino: riga(w),
-        avviso: w.finestraBevuta ? undefined : "Senza finestra di bevuta: l'app userà una stima generica.",
+        avviso: w.finestraBevuta ? undefined : 'Senza finestra di bevuta: il vino è in coda per l\'arricchimento automatico.',
       });
     }
   );

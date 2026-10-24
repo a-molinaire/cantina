@@ -1,5 +1,5 @@
 // Configurazione del Worker cantina-ai, ricostruita da Cloudflare il 2026-10-23.
-// I segreti (ANTHROPIC_API_KEY, CANTINA_TOKEN) restano su Cloudflare: non vanno mai scritti qui.
+// I segreti (ANTHROPIC_API_KEY, CANTINA_TOKEN, ROUTINE_TOKEN) restano su Cloudflare: non vanno mai scritti qui.
 {
   "name": "cantina-ai",
   "main": "worker.js",
@@ -7,5 +7,13 @@
   "workers_dev": true,
   "kv_namespaces": [
     { "binding": "CANTINA_DB", "id": "cd8096b3df154ec89e43a15c5a81625d" }
-  ]
+  ],
+  // Coda di arricchimento: il timer avvia Claude (abbonamento) o la riserva a crediti
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "vars": {
+    "ROUTINE_ID": "trig_0173DL1sBSLZwX2TKEEZcBGC",
+    "ATTESA_SECONDI": "600",
+    "RISERVA_SECONDI": "1800",
+    "MAX_AVVII_GIORNO": "4"
+  }
 }

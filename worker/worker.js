@@ -11,7 +11,8 @@
 // POST   /db/:id/decrement      → -1 bottiglia
 // POST   /db/:id/markout        → sposta nello storico
 // POST   /db/:id/markin         → rimetti in cantina
-// POST   /ai                    → arricchimento AI
+// POST   /db/:id/enrich         → metti in coda per l'arricchimento (prima Claude, poi riserva)
+// POST   /ai                    → arricchimento AI immediato a crediti (Sonnet)
 // GET    /snapshots             → lista date snapshot
 // GET    /snapshots/:date       → scarica snapshot
 // POST   /snapshots/:date/restore → ripristina snapshot
@@ -19,8 +20,9 @@
 // Tutti richiedono Authorization: Bearer <CANTINA_TOKEN>
 // ═══════════════════════════════════════════════════════════
 
-const MODEL = 'claude-haiku-4-5-20251001';
-const MAX_TOKENS = 1200;
+// Modello della riserva a crediti: entra in gioco solo se Claude (abbonamento) non arricchisce il vino
+const MODEL = 'claude-sonnet-5-5';
+const MAX_TOKENS = 2000;
 const TEMPERATURE = 0;
 const DB_KEY = 'db';
 const SNAPSHOT_RETENTION_DAYS = 30;
@@ -77,10 +79,16 @@ export default {
         if (action === 'decrement') return dbDecrement(id, env);
         if (action === 'markout')   return dbMarkOut(id, env);
         if (action === 'markin')    return dbMarkIn(id, env);
+        if (action === 'enrich')    return dbEnqueue(id, env);
       }
     }
 
     return jsonError('Not found: ' + method + ' ' + path, 404);
+  },
+
+  // Timer (cron in wrangler.jsonc): avvia Claude sui vini in coda o passa alla riserva
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(processaCoda(env));
   },
 };
 
@@ -258,12 +266,18 @@ async function handleAI(request, env) {
   let wine;
   try { wine = await request.json(); } catch (e) { return jsonError('Invalid JSON', 400); }
   if (!wine.azienda || !wine.bottiglia) return jsonError('Missing azienda or bottiglia', 400);
-  if (!env.ANTHROPIC_API_KEY) return jsonError('ANTHROPIC_API_KEY not configured', 500);
+  const esito = await arricchisciConAPI(wine, env);
+  return esito.error ? jsonError(esito.error, 500) : jsonOK(esito.result);
+}
+
+// Chiamata a crediti (Claude Platform). Restituisce { result } oppure { error }.
+async function arricchisciConAPI(wine, env) {
+  if (!env.ANTHROPIC_API_KEY) return { error: 'ANTHROPIC_API_KEY not configured' };
 
   const prompt = buildPrompt(wine);
   let claudeResponse;
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch((env.ANTHROPIC_URL || 'https://api.anthropic.com') + '/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -279,23 +293,156 @@ async function handleAI(request, env) {
       }),
     });
     claudeResponse = await res.json();
-    if (!res.ok) return jsonError('Claude API error: ' + (claudeResponse.error?.message || 'unknown'), 500);
+    if (!res.ok) return { error: 'Claude API error: ' + (claudeResponse.error?.message || 'unknown') };
   } catch (e) {
-    return jsonError('Network error: ' + e.message, 500);
+    return { error: 'Network error: ' + e.message };
   }
 
   const result = extractJSON(claudeResponse);
-  if (!result) return jsonError('Could not parse Claude response as JSON', 500);
+  if (!result) return { error: 'Could not parse Claude response as JSON' };
 
   const fw = result.finestraBevuta;
   if (!fw || typeof fw.start !== 'number' || typeof fw.peak !== 'number' || typeof fw.end !== 'number' ||
       fw.start > fw.peak || fw.peak > fw.end) {
-    return jsonError('AI returned invalid finestraBevuta', 500);
+    return { error: 'AI returned invalid finestraBevuta' };
   }
   if (!Array.isArray(result.abbinamenti) || result.abbinamenti.length === 0) {
-    return jsonError('AI returned invalid abbinamenti', 500);
+    return { error: 'AI returned invalid abbinamenti' };
   }
-  return jsonOK(result);
+  return { result };
+}
+
+// ═══════════════════════════════════════════════════════════
+// CODA DI ARRICCHIMENTO — prima Claude (abbonamento), poi riserva a crediti
+// ═══════════════════════════════════════════════════════════
+// Un vino in coda ha aiStato 'coda'. Il timer (ogni 2 minuti):
+//  1. se l'ultimo vino è entrato in coda da almeno ATTESA_SECONDI, avvia UNA volta l'attività
+//     Claude (routine) per tutti i vini in coda, entro MAX_AVVII_GIORNO avvii al giorno;
+//  2. se l'avvio è rifiutato o il tetto è raggiunto, passa subito alla riserva;
+//  3. se dopo RISERVA_SECONDI dall'avvio un vino è ancora in coda, passa alla riserva.
+// Claude chiude un vino scrivendo aiStato 'claude' dal connettore; la riserva scrive 'riserva'.
+// Lo stato degli avvii sta in una chiave a parte (coda_meta) così il timer scrive nel
+// database solo quando salva un risultato della riserva.
+const META_KEY = 'coda_meta';
+
+const numero = (v, predefinito) => (v !== undefined && v !== '' && !isNaN(Number(v)) ? Number(v) : predefinito);
+
+async function dbEnqueue(id, env) {
+  const db = await loadDB(env);
+  const w = db.wines.find(w => String(w.id) === String(id));
+  if (!w) return jsonError('Not found', 404);
+  Object.assign(w, { aiStato: 'coda', aiCodaDal: new Date().toISOString(), aiErrore: null });
+  await saveDB(db, env);
+  // Un nuovo inserimento "riapre" l'attesa anche per un vino già avviato in passato
+  const meta = await leggiMeta(env);
+  delete meta.avviati[String(w.id)];
+  await env.CANTINA_DB.put(META_KEY, JSON.stringify(meta));
+  return jsonOK(w);
+}
+
+async function leggiMeta(env) {
+  try {
+    const meta = JSON.parse((await env.CANTINA_DB.get(META_KEY)) || '{}');
+    return { giorno: '', avvii: 0, avviati: {}, inRiserva: {}, ...meta };
+  } catch (e) {
+    return { giorno: '', avvii: 0, avviati: {}, inRiserva: {} };
+  }
+}
+
+async function avviaClaude(env, vini) {
+  if (!env.ROUTINE_ID || !env.ROUTINE_TOKEN) return { ok: false, motivo: 'attività Claude non configurata' };
+  const elenco = vini.map(w => `- id "${w.id}": ${w.azienda} · ${w.bottiglia}${w.vendemmia ? ' ' + w.vendemmia : ''}`).join('\n');
+  try {
+    const res = await fetch(
+      (env.ROUTINE_FIRE_URL || 'https://api.anthropic.com') + '/v1/claude_code/routines/' + env.ROUTINE_ID + '/fire',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + env.ROUTINE_TOKEN,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: 'Vini in coda da arricchire:\n' + elenco }),
+      }
+    );
+    if (!res.ok) return { ok: false, motivo: 'avvio rifiutato: HTTP ' + res.status };
+    const data = await res.json().catch(() => ({}));
+    return { ok: true, sessione: data.claude_code_session_url || '' };
+  } catch (e) {
+    return { ok: false, motivo: 'avvio non riuscito: ' + e.message };
+  }
+}
+
+async function processaCoda(env) {
+  const ora = Date.now();
+  const attesaMs = numero(env.ATTESA_SECONDI, 600) * 1000;
+  const riservaMs = numero(env.RISERVA_SECONDI, 1800) * 1000;
+  const maxAvvii = numero(env.MAX_AVVII_GIORNO, 4);
+
+  const db = await loadDB(env);
+  const meta = await leggiMeta(env);
+
+  // Dimentica avvii e riserve di vini che non sono più in coda (Claude li ha completati)
+  const inCoda = new Set(db.wines.filter(w => w.aiStato === 'coda' && !w.deletedAt).map(w => String(w.id)));
+  for (const mappa of [meta.avviati, meta.inRiserva]) {
+    for (const id of Object.keys(mappa)) if (!inCoda.has(id)) delete mappa[id];
+  }
+  // Un vino con la riserva ancora in corso (timer precedente) non va ripreso: max 10 minuti
+  const coda = db.wines.filter(w => inCoda.has(String(w.id)) &&
+    !(meta.inRiserva[String(w.id)] && ora - Date.parse(meta.inRiserva[String(w.id)]) < 10 * 60 * 1000));
+
+  const daRiserva = coda.filter(w => meta.avviati[String(w.id)] && ora - Date.parse(meta.avviati[String(w.id)]) >= riservaMs);
+  const nuovi = coda.filter(w => !meta.avviati[String(w.id)]);
+
+  if (nuovi.length) {
+    const ultimoIngresso = Math.max(...nuovi.map(w => Date.parse(w.aiCodaDal) || 0));
+    if (ora - ultimoIngresso >= attesaMs) {
+      const oggi = new Date(ora).toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
+      if (meta.giorno !== oggi) Object.assign(meta, { giorno: oggi, avvii: 0 });
+      const esito = meta.avvii < maxAvvii
+        ? await avviaClaude(env, nuovi)
+        : { ok: false, motivo: `tetto di ${maxAvvii} avvii al giorno raggiunto` };
+      meta.ultimoEsito = { quando: new Date(ora).toISOString(), vini: nuovi.length, ...esito };
+      if (esito.ok) {
+        meta.avvii++;
+        for (const w of nuovi) meta.avviati[String(w.id)] = new Date(ora).toISOString();
+      } else {
+        daRiserva.push(...nuovi);
+      }
+    }
+  }
+  for (const w of daRiserva) meta.inRiserva[String(w.id)] = new Date(ora).toISOString();
+  await env.CANTINA_DB.put(META_KEY, JSON.stringify(meta));
+
+  for (const w of daRiserva) {
+    const esito = await arricchisciConAPI(w, env);
+    // Ricarico prima di scrivere: nel frattempo Claude o l'app possono aver toccato il vino
+    const fresco = await loadDB(env);
+    const v = fresco.wines.find(x => String(x.id) === String(w.id));
+    if (!v || v.aiStato !== 'coda') continue;
+    if (esito.error) {
+      Object.assign(v, { aiStato: 'errore', aiErrore: esito.error });
+    } else {
+      const r = esito.result;
+      Object.assign(v, {
+        finestraBevuta: r.finestraBevuta,
+        abbinamenti: r.abbinamenti,
+        aiEnriched: true,
+        aiLivello: r.livello || 3,
+        aiFonte: r.fonte || '',
+        aiNote: r.note || '',
+        aiTimestamp: new Date().toISOString(),
+        aiStato: 'riserva',
+        aiErrore: null,
+        dwSource: null,
+      });
+    }
+    await saveDB(fresco, env);
+    const m = await leggiMeta(env);
+    delete m.avviati[String(w.id)];
+    delete m.inRiserva[String(w.id)];
+    await env.CANTINA_DB.put(META_KEY, JSON.stringify(m));
+  }
 }
 
 function buildPrompt(wine) {

@@ -73,7 +73,7 @@ const tool = async (name, args = {}) => {
 const init = await rpc('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'prova', version: '1' } });
 ok(init.serverInfo.name === 'Cantina Molinaro', 'initialize: ' + init.serverInfo.name + ' (protocollo ' + init.protocolVersion + ')');
 const { tools } = await rpc('tools/list', {});
-ok(tools.length === 6, 'strumenti: ' + tools.map(t => t.name).join(', '));
+ok(tools.length === 7, 'strumenti: ' + tools.map(t => t.name).join(', '));
 
 const pan = await tool('panoramica_cantina');
 ok(pan.bottiglie > 0 && pan.etichette > 0, `panoramica: ${pan.bottiglie} bottiglie, ${pan.etichette} etichette, ${pan.valore_euro} €`);
@@ -105,6 +105,15 @@ const ultima = await tool('bevi_bottiglia', { id: nuovo.vino.id });
 ok(ultima.vino.in_cantina === false && /voto 8/.test(ultima.vino.note), "ultima bottiglia: passa nello storico con la nota");
 const det = await tool('dettaglio_vino', { id: nuovo.vino.id });
 ok(det.aiEnriched === true && det.finestraBevuta.peak === 2026, 'dettaglio: finestra salvata nel formato dell\'app');
+
+// Coda: il vino in coda compare tra quelli da arricchire e Claude lo chiude con il livello scelto
+const inCoda = await (await fetch('http://localhost:8787/db/' + nuovo.vino.id + '/enrich', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN } })).json();
+ok(inCoda.aiStato === 'coda', 'vino messo in coda dal Worker');
+const daFare = await tool('vini_da_arricchire');
+ok(daFare.vini.some(v => v.id === nuovo.vino.id), 'vini_da_arricchire elenca il vino in coda (' + daFare.da_arricchire + ' in tutto)');
+await tool('modifica_vino', { id: nuovo.vino.id, finestraBevuta: { start: 2024, peak: 2027, end: 2031 }, abbinamenti: ['brasato'], fonti: 'categoria', livello: 2 });
+const chiuso = await tool('dettaglio_vino', { id: nuovo.vino.id });
+ok(chiuso.aiStato === 'claude' && chiuso.aiLivello === 2 && !chiuso.aiCodaDal, 'Claude chiude la coda: stato claude, livello 2 scelto da Claude');
 
 // 6. Rinnovo del token
 const ref = await (await fetch(as.token_endpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: tok.refresh_token, client_id: client.client_id }) })).json();

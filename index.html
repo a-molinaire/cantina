@@ -527,6 +527,7 @@ td { padding: 11px 10px; font-size: 13px; vertical-align: middle; color: var(--i
   font-weight: 600; letter-spacing: 0.3px;
 }
 .ai-level-1 { background: rgba(126,200,142,0.15); color: var(--green); border: 1px solid rgba(126,200,142,0.3); }
+.ai-level-src { background: rgba(226,191,122,0.12); color: var(--gold); border: 1px solid rgba(226,191,122,0.3); }
 .ai-level-2 { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(232,160,64,0.3); }
 .ai-level-3 { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border-strong); }
 
@@ -929,7 +930,7 @@ body.tab-storico .sort-opt-pos {
 // ═══════════════════════════════════════════════════════════
 // VERSION
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v27 — Ottobre 2026';
+const APP_VERSION = 'v28 — Ottobre 2026';
 
 // Accesso: il vero lucchetto è il token del Worker. Niente password nel codice.
 // Il dispositivo è "collegato" quando ha URL Worker + token salvati in localStorage.
@@ -1016,7 +1017,7 @@ document.addEventListener('keydown', (e) => {
 // ═══════════════════════════════════════════════════════════
 const AI_URL_KEY = 'cantina_ai_url';
 const AI_TOKEN_KEY = 'cantina_ai_token';
-const AI_TIMEOUT_MS = 30000;
+const AI_TIMEOUT_MS = 90000; // Sonnet con ricerca web può impiegare più di 30 secondi
 
 function getAIUrl() {
   return (localStorage.getItem(AI_URL_KEY) || '').trim();
@@ -1130,6 +1131,9 @@ async function enrichWithAI(wine, { forceAI = false } = {}) {
     aiFonte: result.fonte || '',
     aiNote: result.note || '',
     aiTimestamp: new Date().toISOString(),
+    aiStato: 'riserva',
+    aiCodaDal: null,
+    aiErrore: null,
     dwSource: null,
   };
   try {
@@ -1231,6 +1235,10 @@ async function apiDecrement(id) {
 }
 async function apiMarkOut(id) {
   return apiCall('POST', '/db/' + encodeURIComponent(id) + '/markout');
+}
+// Coda di arricchimento: prima Claude (abbonamento), poi riserva a crediti (vedi worker.js)
+async function apiEnqueue(id) {
+  return apiCall('POST', '/db/' + encodeURIComponent(id) + '/enrich');
 }
 async function apiMarkIn(id) {
   return apiCall('POST', '/db/' + encodeURIComponent(id) + '/markin');
@@ -1849,10 +1857,12 @@ async function saveEdit(id) {
     refreshModal(updated);
     render();
     buildFilterPanels();
-    showToast('✅ Modifiche salvate');
+    showToast('✅ Modifiche salvate' + (needsReenrich && isAIEnabled() ? ' · ⏳ Claude aggiornerà la finestra di bevuta' : ''));
   } catch (err) {
     showToast('❌ Salvataggio fallito: ' + err.message);
+    return;
   }
+  if (needsReenrich && isAIEnabled()) await accodaArricchimento(id, { silenzioso: true });
 }
 
 // Elimina un vino (hard delete via API)
@@ -1905,10 +1915,13 @@ function buildModalBody(w) {
       <div style="margin-top:12px;font-size:13px;color:var(--ink);font-weight:500;">
         Stato attuale (${now}): <span class="dw-badge dw-${status.key}">${status.label}</span>
       </div>
+      ${aiStatoHtml(w)}
       ${w.aiEnriched ? `
       <div class="dw-source">
         <div class="dw-source-title">
-          🤖 Analisi AI
+          ${w.aiStato === 'claude' ? '✨ Analisi Claude <span class="ai-level-badge ai-level-src">abbonamento</span>'
+            : w.aiStato === 'riserva' ? '💳 Analisi Sonnet <span class="ai-level-badge ai-level-src">crediti</span>'
+            : '🤖 Analisi AI'}
           ${w.aiLivello === 1 ? '<span class="ai-level-badge ai-level-1">● Specifica</span>' : ''}
           ${w.aiLivello === 2 ? '<span class="ai-level-badge ai-level-2">● Annata+Zona</span>' : ''}
           ${w.aiLivello === 3 ? '<span class="ai-level-badge ai-level-3">● Generica</span>' : ''}
@@ -1919,7 +1932,7 @@ function buildModalBody(w) {
         </div>
         ${w.aiTimestamp ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:'SF Mono',Menlo,monospace;">Analisi del ${new Date(w.aiTimestamp).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>` : ''}
         ${w.aiLivello === 3 ? `<div class="dw-source-note">⚠️ Claude non ha trovato info specifiche su questo vino o sull'annata, quindi ha usato un profilo generico del vitigno.</div>` : ''}
-        <button class="ai-retry-btn" onclick="retryAI('${w.id}');event.stopPropagation()" ${!isAIEnabled() ? 'disabled title="Configura AI nelle Statistiche"' : ''}>🔄 Rianalizza con AI</button>
+        ${w.aiStato === 'coda' ? '' : aiPulsantiHtml(w, '🔄 Rianalizza con Claude')}
       </div>
       ` : (w.dwSource ? `
       <div class="dw-source">
@@ -1931,7 +1944,7 @@ function buildModalBody(w) {
           }
         </div>
         <div class="dw-source-note">⚠️ Stima generica — non considera l'annata specifica o il produttore.</div>
-        ${isAIEnabled() ? `<button class="ai-retry-btn" onclick="retryAI('${w.id}');event.stopPropagation()">🤖 Analizza con AI</button>` : ''}
+        ${w.aiStato === 'coda' ? '' : aiPulsantiHtml(w, '✨ Analizza con Claude')}
       </div>` : '')}
     `;
   }
@@ -2082,7 +2095,39 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
-// Rianalizza un vino con AI (chiamato dal bottone nel modal)
+// Riquadro di stato della coda nella scheda del vino
+function aiStatoHtml(w) {
+  if (w.aiStato === 'coda') {
+    const dal = w.aiCodaDal ? new Date(w.aiCodaDal).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
+    return `<div class="ai-analyzing"><div class="ai-spinner"></div><div>
+      <strong>In coda per Claude</strong>${dal ? ` dalle ${dal}` : ''}: parte dopo 10 minuti dall'ultimo vino aggiunto.
+      Se l'abbonamento non è disponibile, passa da solo alla riserva a crediti.
+      ${isAIEnabled() ? `<br><button class="ai-retry-btn" onclick="retryAI('${w.id}');event.stopPropagation()">💳 Fai subito a crediti</button>` : ''}
+    </div></div>`;
+  }
+  if (w.aiStato === 'errore') {
+    return `<div class="dw-source-note">⚠️ Arricchimento non riuscito${w.aiErrore ? `: ${escapeHtml(w.aiErrore)}` : ''}.
+      ${aiPulsantiHtml(w, '🔄 Riprova con Claude')}</div>`;
+  }
+  return '';
+}
+
+function aiPulsantiHtml(w, etichettaClaude) {
+  if (!isAIEnabled()) return '';
+  return `<button class="ai-retry-btn" onclick="retryClaude('${w.id}');event.stopPropagation()">${etichettaClaude}</button>
+    <button class="ai-retry-btn" onclick="retryAI('${w.id}');event.stopPropagation()" title="Subito, con i crediti della Claude Platform">💳 Subito a crediti</button>`;
+}
+
+// Rianalizza con Claude (abbonamento): rimette il vino in coda
+function retryClaude(id) {
+  if (!isAIEnabled()) {
+    showToast('⚠️ Configura prima l\'AI in Statistiche → Configurazione AI');
+    return;
+  }
+  accodaArricchimento(id);
+}
+
+// Rianalizza subito a crediti (riserva Sonnet), senza passare dalla coda
 async function retryAI(id) {
   if (!isAIEnabled()) {
     showToast('⚠️ Configura prima l\'AI in Statistiche → Configurazione AI');
@@ -2094,9 +2139,9 @@ async function retryAI(id) {
   const modalBody = document.getElementById('modal-body');
   if (modalBody) {
     modalBody.insertAdjacentHTML('afterbegin',
-      `<div class="ai-analyzing"><div class="ai-spinner"></div><div>Claude sta cercando info specifiche su <strong>${escapeHtml(w.bottiglia)}</strong> — attendi 5-15 secondi...</div></div>`);
+      `<div class="ai-analyzing"><div class="ai-spinner"></div><div>Analisi a crediti (Sonnet) su <strong>${escapeHtml(w.bottiglia)}</strong> — attendi 20-60 secondi...</div></div>`);
   }
-  showToast('🤖 Analisi AI in corso...');
+  showToast('💳 Analisi a crediti in corso...');
   const result = await enrichWithAI(w, { forceAI: true });
   // Importante: dopo updateInMemory, l'oggetto w originale è stato sostituito.
   // Refetch dall'array per avere l'ultimo stato.
@@ -2435,19 +2480,27 @@ async function saveWine() {
   } else if (action === 'restore') {
     showToast(`🔄 ${targetWine.bottiglia} ripristinato dallo storico con ${qty} bottiglie`);
   } else {
-    showToast(`✅ ${targetWine.bottiglia} aggiunto${isAIEnabled() ? ' · Claude sta cercando info specifiche...' : ''}`);
+    showToast(`✅ ${targetWine.bottiglia} aggiunto${isAIEnabled() ? ' · ⏳ Claude lo arricchirà a breve' : ''}`);
   }
 
-  // Chiama AI solo sui nuovi vini (non merge/restore) se configurata
-  if (action === 'new' && isAIEnabled()) {
-    const result = await enrichWithAI(targetWine, { forceAI: true });
+  // Solo i nuovi vini (non merge/restore) vanno in coda per l'arricchimento
+  if (action === 'new' && isAIEnabled()) await accodaArricchimento(targetWine.id, { silenzioso: true });
+}
+
+// Mette un vino in coda: il Worker avvia Claude dopo l'attesa, o la riserva a crediti se serve
+async function accodaArricchimento(id, { silenzioso = false } = {}) {
+  try {
+    const updated = await apiEnqueue(id);
+    if (!updated.finestraBevuta) enrichWine(updated);
+    updateInMemory(updated);
     render();
-    if (result.usedAI && !result.failed) {
-      const livDesc = { 1: 'info specifiche trovate', 2: 'info su annata+zona', 3: 'profilo generico' }[result.livello] || '';
-      showToast(`🤖 Claude ha arricchito ${targetWine.bottiglia} (${livDesc})`);
-    } else {
-      showToast(`⚠️ AI non disponibile, info da DB interno`);
+    const overlay = document.getElementById('overlay');
+    if (overlay && overlay.classList.contains('open') && document.getElementById('modal-title').dataset.id === String(id)) {
+      refreshModal(updated);
     }
+    if (!silenzioso) showToast('⏳ In coda: Claude lo arricchirà a breve');
+  } catch (err) {
+    showToast('⚠️ Coda non disponibile: ' + err.message);
   }
 }
 

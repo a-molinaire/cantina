@@ -1,10 +1,20 @@
-// Solo per prove in locale (npm run / wrangler dev): KV finto, nessun dato reale.
+// Solo per prove in locale (wrangler dev --test-scheduled): KV finto, nessun dato reale.
 // L'id inesistente fa sì che nessun comando possa toccare l'archivio vero per errore.
+// Claude e la Claude Platform sono sostituiti dal finto servizio di test/finto-anthropic.mjs.
 {
   "name": "cantina-ai-test",
   "main": "worker.js",
   "compatibility_date": "2026-04-21",
   "kv_namespaces": [
     { "binding": "CANTINA_DB", "id": "local-test-cantina" }
-  ]
+  ],
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "vars": {
+    "ANTHROPIC_URL": "http://localhost:8790",
+    "ROUTINE_FIRE_URL": "http://localhost:8790",
+    "ROUTINE_ID": "trig_prova",
+    "ATTESA_SECONDI": "4",
+    "RISERVA_SECONDI": "8",
+    "MAX_AVVII_GIORNO": "2"
+  }
 }
