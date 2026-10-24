@@ -975,7 +975,7 @@ body.tab-storico .sort-opt-pos {
 // ═══════════════════════════════════════════════════════════
 // VERSION
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v33 — Ottobre 2026';
+const APP_VERSION = 'v34 — Ottobre 2026';
 
 // Accesso: il vero lucchetto è il token del Worker. Niente password nel codice.
 // Il dispositivo è "collegato" quando ha URL Worker + token salvati in localStorage.
@@ -2656,6 +2656,7 @@ function renderStats() {
       <div class="chart-title">Bottiglie per regione <span class="stats-scope-badge">🍷 Solo cantina</span></div>
       <div class="mappa-wrap" id="mappaItalia"><div class="chart-sub">Caricamento mappa…</div></div>
       <div class="regioni-elenco" id="esteroWrap"></div>
+      <div class="chart-dettaglio" id="mappaDettaglio">Tocca una regione per vedere i vini.</div>
     </div>
 
     <div class="chart-card">
@@ -2921,21 +2922,15 @@ function disegnaMaturita(inStock) {
   });
 }
 
-// Sotto la curva: i vini di un anno raggruppati per stato, dal più urgente
+// Al tocco di un anno: i vini, uno per riga come in vendemmia e scaffale, dal più urgente
 function dettaglioMaturita(conFinestra, anno) {
   const ordine = ['old', 'mature', 'peak', 'ready', 'young'];
-  const gruppi = ordine.map(key => {
-    const stato = STATI_MATURITA.find(s => s.key === key);
-    const vini = conFinestra.filter(w => getDWStatus(w.finestraBevuta, anno).key === key)
-      .sort((a, b) => a.finestraBevuta.end - b.finestraBevuta.end);
-    if (!vini.length) return '';
-    const n = vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
-    return `<div class="elenco-gruppo"><strong style="color:${stato.colore}">${stato.label}: ${bottiglieTxt(n)}</strong><br>` +
-      vini.map(w => `<a href="#" onclick="openModal('${w.id}');return false">${escapeHtml(w.bottiglia)} ${w.vendemmia || ''}</a>`).join(', ') +
-      '</div>';
-  }).join('');
-  document.getElementById('maturitaDettaglio').innerHTML =
-    `<div class="elenco-anno">Nel <strong>${anno}</strong>${anno === new Date().getFullYear() ? ' (oggi)' : ''}</div>` + gruppi;
+  const stato = w => getDWStatus(w.finestraBevuta, anno).key;
+  const vini = [...conFinestra].sort((a, b) => ordine.indexOf(stato(a)) - ordine.indexOf(stato(b)) || a.finestraBevuta.end - b.finestraBevuta.end);
+  const n = vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
+  document.getElementById('maturitaDettaglio').innerHTML = `<strong>Nel ${anno}: ${bottiglieTxt(n)}</strong><br>` +
+    elencoViniHtml(vini, w => coloreStato(stato(w)),
+      w => `${STATI_MATURITA.find(s => s.key === stato(w)).label}${w.riconteggio > 1 ? ' · ' + w.riconteggio + ' bott.' : ''}`);
 }
 
 // Scaffale: Kallax 2×2 impilati = 2 colonne (Sx, Dx) × 6 caselle, la casella 1 è in basso.
@@ -3042,11 +3037,27 @@ async function disegnaMappa(inStock) {
   ].sort((a, b) => (a.estero - b.estero) || (bottiglie(b.vini) - bottiglie(a.vini)));
   document.getElementById('esteroWrap').innerHTML = righe.map((r, i) => `
     ${r.estero && !righe[i - 1]?.estero ? '<div class="elenco-anno" style="margin-top:10px">🌎 Estero</div>' : ''}
-    <div class="regione-riga">
+    <a href="#" class="regione-riga" onclick="mostraRegione(${i});return false">
       <i class="kallax-dot" style="background:${r.colore}"></i>
       <strong>${escapeHtml(r.nome)}</strong>
       <span class="elenco-extra"> · ${bottiglieTxt(bottiglie(r.vini))} · ${ripartoTipi(r.vini)}</span>
-    </div>`).join('');
+    </a>`).join('');
+  elencoRegioni = righe;
+
+  wrap.querySelectorAll('.mappa-reg').forEach(p => p.addEventListener('click', () => {
+    const i = righe.findIndex(r => !r.estero && r.nome === nomeRegione(p.dataset.codice));
+    if (i >= 0) mostraRegione(i);
+    else document.getElementById('mappaDettaglio').textContent = `${nomeRegione(p.dataset.codice)}: nessuna bottiglia in cantina.`;
+  }));
+}
+
+// Al tocco di una regione (mappa o elenco): i vini, uno per riga come in vendemmia e scaffale
+let elencoRegioni = [];
+function mostraRegione(i) {
+  const r = elencoRegioni[i];
+  const n = r.vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
+  document.getElementById('mappaDettaglio').innerHTML = `<strong>${escapeHtml(r.nome)}: ${bottiglieTxt(n)}</strong> (${ripartoTipi(r.vini)})<br>` +
+    elencoViniHtml(r.vini, w => coloreFamiglia(w.tipo), w => `${w.tipo}${w.riconteggio > 1 ? ' · ' + w.riconteggio + ' bott.' : ''}`);
 }
 
 // Ritmo di consumo: stima dagli snapshot (bottiglie che calano) + date registrate dal 24/10/2026
