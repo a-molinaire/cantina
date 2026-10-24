@@ -61,3 +61,5 @@ export const createWine = (wine: Partial<Wine>) => call<Wine>('POST', '/db', win
 export const patchWine = (id: string, updates: Partial<Wine>) =>
   call<Wine>('PATCH', '/db/' + encodeURIComponent(id), updates);
 export const markOut = (id: string) => call<Wine>('POST', '/db/' + encodeURIComponent(id) + '/markout');
+// Toglie una bottiglia e ne registra la data (come il "−" dell'app)
+export const decrement = (id: string) => call<Wine>('POST', '/db/' + encodeURIComponent(id) + '/decrement');

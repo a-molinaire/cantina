@@ -3,7 +3,7 @@
 // replicano quelle dell'app, così app e Claude si comportano allo stesso modo.
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { createWine, getWine, getWines, markOut, patchWine, type Finestra, type Wine } from './api';
+import { createWine, decrement, getWine, getWines, markOut, patchWine, type Finestra, type Wine } from './api';
 
 const TIPI = ['Rosso', 'Bianco', 'Bianco Spumante', 'Rosè', 'Rose Spumante'] as const;
 const STATI = ['giovane', 'pronto', 'apice', 'maturo', 'vecchio', 'sconosciuto'] as const;
@@ -372,12 +372,11 @@ export function createServer() {
     async ({ id, nota }) => {
       const w = await getWine(id);
       if (!w.inStock || !(w.riconteggio || 0)) return errore('Questo vino non ha bottiglie in cantina.');
-      const patch: Partial<Wine> = { riconteggio: (w.riconteggio || 0) - 1 };
+      let aggiornato = await decrement(id);
       if (nota) {
         const data = new Date().toLocaleDateString('it-IT');
-        patch.utilizzo = (w.utilizzo ? w.utilizzo + ' | ' : '') + `${data}: ${nota}`;
+        aggiornato = await patchWine(id, { utilizzo: (w.utilizzo ? w.utilizzo + ' | ' : '') + `${data}: ${nota}` });
       }
-      let aggiornato = await patchWine(id, patch);
       let esito = `bottiglia segnata come bevuta, ne restano ${aggiornato.riconteggio}`;
       if (!aggiornato.riconteggio) {
         aggiornato = await markOut(id);

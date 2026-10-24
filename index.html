@@ -15,6 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root {
   --bg: #0F0D0B;
@@ -653,6 +654,34 @@ td { padding: 11px 10px; font-size: 13px; vertical-align: middle; color: var(--i
 .bar-fill { height: 100%; background: var(--wine); border-radius: 4px; transition: width 0.5s; }
 .bar-fill.gold { background: var(--gold); }
 .bar-fill.green { background: var(--green); }
+.chart-sub { font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin-bottom: 12px; }
+.chart-box { position: relative; height: 260px; }
+.chart-dettaglio { font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 12px; }
+.chart-dettaglio a { color: var(--gold); text-decoration: none; }
+.mappa-wrap { max-width: 420px; margin: 0 auto; }
+.mappa-svg { width: 100%; height: auto; display: block; }
+.mappa-reg { stroke: var(--bg); stroke-width: 0.8; cursor: pointer; transition: opacity 0.15s; }
+.mappa-reg:hover { opacity: 0.8; }
+.mappa-num { fill: #fff; font-size: 13px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,0.45); stroke-width: 3px; }
+.consumi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Scaffale Kallax: telaio chiaro, caselle quadrate */
+.kallax {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
+  max-width: 260px; margin: 0 auto; padding: 6px;
+  background: #3a322b; border-radius: 6px;
+}
+.kallax-cella {
+  aspect-ratio: 4 / 3; position: relative; border: none; border-radius: 3px; cursor: pointer;
+  background: var(--bg); color: var(--ink); font-family: inherit; padding: 6px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.kallax-cella:hover { outline: 1px solid var(--gold); }
+.kallax-cella.vuota { opacity: 0.55; }
+.kallax-pos { position: absolute; top: 4px; left: 6px; font-size: 10px; color: var(--muted); }
+.kallax-num { font-family: 'Fraunces', serif; font-size: 20px; line-height: 1; }
+.kallax-pallini { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; max-width: 90%; }
+.kallax-pallini i, .kallax-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.kallax-dot { margin-right: 6px; vertical-align: middle; }
 .bar-count { font-size: 11px; color: var(--muted); min-width: 24px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Pages */
@@ -939,7 +968,7 @@ body.tab-storico .sort-opt-pos {
 // ═══════════════════════════════════════════════════════════
 // VERSION
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v29 — Ottobre 2026';
+const APP_VERSION = 'v30 — Ottobre 2026';
 
 // Accesso: il vero lucchetto è il token del Worker. Niente password nel codice.
 // Il dispositivo è "collegato" quando ha URL Worker + token salvati in localStorage.
@@ -2582,11 +2611,6 @@ function renderStats() {
   }).reduce((s,w) => s + (w.riconteggio||0), 0);
   const youngBottles = inStock.filter(w => getDWStatus(w.finestraBevuta, now).key === 'young').reduce((s,w) => s + (w.riconteggio||0), 0);
 
-  const byRegion = {};
-  inStock.forEach(w => { byRegion[w.regione] = (byRegion[w.regione]||0) + (w.riconteggio||0); });
-  const regions = Object.entries(byRegion).sort((a,b) => b[1]-a[1]).slice(0, 10);
-  const maxR = regions[0]?.[1] || 1;
-
   const byType = {};
   inStock.forEach(w => { byType[w.tipo] = (byType[w.tipo]||0) + (w.riconteggio||0); });
   const types = Object.entries(byType).sort((a,b) => b[1]-a[1]);
@@ -2597,10 +2621,6 @@ function renderStats() {
   const vintages = Object.entries(byVintage).sort((a,b) => b[0]-a[0]).slice(0, 12);
   const maxV = Math.max(...vintages.map(v => v[1]), 1);
 
-  const byQuad = {};
-  inStock.forEach(w => { if (w.quadrante) byQuad[w.quadrante] = (byQuad[w.quadrante]||0) + (w.riconteggio||0); });
-  const quads = Object.entries(byQuad).sort((a,b) => a[0].localeCompare(b[0], undefined, {numeric:true}));
-  const maxQ = Math.max(...quads.map(q => q[1]), 1);
 
   // Stats storico: bottiglie smaltite = qtaIniziale (storico) + (qtaIniziale - riconteggio per stock)
   const outList = wines.filter(w => !w.inStock && !w.deletedAt);
@@ -2623,13 +2643,22 @@ function renderStats() {
     </div>
 
     <div class="chart-card">
+      <div class="chart-title">Curva di maturità <span class="stats-scope-badge">🍷 Solo cantina</span></div>
+      <div class="chart-sub" id="maturitaSintesi"></div>
+      <div class="chart-box"><canvas id="chartMaturita"></canvas></div>
+      <div class="chart-dettaglio" id="maturitaDettaglio">Tocca un anno per vedere i vini all'apice.</div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Ritmo di consumo</div>
+      <div id="consumiWrap" class="chart-sub">Calcolo in corso…</div>
+    </div>
+
+    <div class="chart-card">
       <div class="chart-title">Bottiglie per regione <span class="stats-scope-badge">🍷 Solo cantina</span></div>
-      ${regions.map(([r,n]) => `
-        <div class="bar-row">
-          <div class="bar-label">${r}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${(n/maxR*100).toFixed(0)}%"></div></div>
-          <div class="bar-count">${n}</div>
-        </div>`).join('')}
+      <div class="mappa-wrap" id="mappaItalia"><div class="chart-sub">Caricamento mappa…</div></div>
+      <div class="chart-dettaglio" id="mappaDettaglio">Tocca una regione per vedere i vini.</div>
+      <div id="esteroWrap"></div>
     </div>
 
     <div class="chart-card">
@@ -2643,13 +2672,9 @@ function renderStats() {
     </div>
 
     <div class="chart-card">
-      <div class="chart-title">Per quadrante (posizione) <span class="stats-scope-badge">🍷 Solo cantina</span></div>
-      ${quads.map(([q,n]) => `
-        <div class="bar-row">
-          <div class="bar-label">${q}</div>
-          <div class="bar-track"><div class="bar-fill green" style="width:${(n/maxQ*100).toFixed(0)}%"></div></div>
-          <div class="bar-count">${n}</div>
-        </div>`).join('')}
+      <div class="chart-title">Scaffale <span class="stats-scope-badge">🍷 Solo cantina</span></div>
+      ${scaffaleHtml(inStock)}
+      <div class="chart-dettaglio" id="scaffaleDettaglio">Tocca una casella per vedere i vini. Ogni pallino è una bottiglia, colorata in base alla maturità.</div>
     </div>
 
     <div class="chart-card">
@@ -2719,6 +2744,233 @@ function renderStats() {
       <span style="color:var(--muted);font-style:italic;font-family:'Fraunces',serif;font-size:11px;letter-spacing:0;">Built with sweat and curiosity</span>
     </div>
   `;
+  disegnaMaturita(inStock);
+  disegnaMappa(inStock);
+  caricaConsumi(total);
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATISTICHE — curva di maturità, mappa delle regioni, ritmo di consumo
+// ═══════════════════════════════════════════════════════════
+const STATI_MATURITA = [
+  { key: 'young', label: 'Giovane', colore: '#E8A040' },
+  { key: 'ready', label: 'Pronto', colore: '#E8C547' },
+  { key: 'peak', label: 'Apice', colore: '#7EC88E' },
+  { key: 'mature', label: 'Maturo', colore: '#7AABDC' },
+  { key: 'old', label: 'Oltre la finestra', colore: '#E07070' },
+];
+let graficoMaturita = null;
+
+// Per ogni anno dei prossimi 15: quante bottiglie sono in ciascuno stato
+function disegnaMaturita(inStock) {
+  const canvas = document.getElementById('chartMaturita');
+  if (!canvas || typeof Chart === 'undefined') return;
+  const oggi = new Date().getFullYear();
+  const anni = Array.from({ length: 15 }, (_, i) => oggi + i);
+  const conFinestra = inStock.filter(w => w.finestraBevuta && w.finestraBevuta.peak);
+  const conta = (anno, key) => conFinestra
+    .filter(w => getDWStatus(w.finestraBevuta, anno).key === key)
+    .reduce((s, w) => s + (w.riconteggio || 0), 0);
+
+  const apicePerAnno = anni.map(a => conta(a, 'peak'));
+  const max = Math.max(...apicePerAnno);
+  const annoMax = anni[apicePerAnno.indexOf(max)];
+  const oltreEntro5 = conta(oggi + 5, 'old');
+  const senza = inStock.filter(w => !w.finestraBevuta).length;
+  document.getElementById('maturitaSintesi').innerHTML =
+    `Picco di bottiglie all'apice: <strong>${annoMax}</strong> (${max}). ` +
+    `Entro il ${oggi + 5} ne usciranno dalla finestra <strong>${oltreEntro5}</strong> se non le bevi.` +
+    (senza ? ` <span style="color:var(--muted)">${senza} vini senza finestra non sono contati.</span>` : '');
+
+  if (graficoMaturita) graficoMaturita.destroy();
+  graficoMaturita = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: anni,
+      datasets: STATI_MATURITA.map(s => ({
+        label: s.label,
+        data: anni.map(a => conta(a, s.key)),
+        backgroundColor: s.colore,
+        borderRadius: 2,
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        x: { stacked: true, ticks: { color: '#8A7D6E', font: { size: 10 } }, grid: { display: false } },
+        y: { stacked: true, ticks: { color: '#8A7D6E', font: { size: 10 }, precision: 0 }, grid: { color: 'rgba(255,240,220,0.06)' } },
+      },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#C9BCA8', boxWidth: 10, font: { size: 11 } } },
+        tooltip: { mode: 'index', intersect: false },
+      },
+      onClick: (evt, elementi, chart) => {
+        // L'anno sotto il dito, anche toccando tra una barra e l'altra
+        const indice = Math.round(chart.scales.x.getValueForPixel(evt.x));
+        if (!(indice >= 0 && indice < anni.length)) return;
+        const anno = anni[indice];
+        const vini = conFinestra.filter(w => getDWStatus(w.finestraBevuta, anno).key === 'peak');
+        document.getElementById('maturitaDettaglio').innerHTML = vini.length
+          ? `<strong>All'apice nel ${anno}:</strong> ` + vini.map(w =>
+              `<a href="#" onclick="openModal('${w.id}');return false">${escapeHtml(w.bottiglia)} ${w.vendemmia || ''}</a> (${w.riconteggio})`).join(', ')
+          : `Nessun vino all'apice nel ${anno}.`;
+      },
+    },
+  });
+}
+
+// Scaffale: Kallax 2×2 impilati = 2 colonne (Sx, Dx) × 6 caselle, la casella 1 è in basso.
+// Le posizioni che non rientrano nello schema (es. scritte a mano diversamente) finiscono in "Altre posizioni".
+const SCAFFALE_COLONNE = ['Sx', 'Dx'];
+const SCAFFALE_RIGHE = 6;
+const coloreStato = key => (STATI_MATURITA.find(s => s.key === key) || {}).colore || 'var(--muted-2)';
+
+function scaffaleHtml(inStock) {
+  const perPosizione = {};
+  inStock.forEach(w => {
+    const pos = (w.quadrante || '').trim().replace(/^(sx|dx)/i, m => m[0].toUpperCase() + m[1].toLowerCase());
+    (perPosizione[pos] = perPosizione[pos] || []).push(w);
+  });
+  const bottiglie = vini => vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
+  const previste = new Set();
+  const righe = [];
+  for (let r = SCAFFALE_RIGHE; r >= 1; r--) {
+    righe.push(SCAFFALE_COLONNE.map(c => {
+      const pos = c + r;
+      previste.add(pos);
+      const vini = perPosizione[pos] || [];
+      const pallini = vini.flatMap(w => Array(w.riconteggio || 0).fill(coloreStato(getDWStatus(w.finestraBevuta).key)));
+      return `<button class="kallax-cella${vini.length ? '' : ' vuota'}" onclick="mostraCasella('${pos}')">
+        <span class="kallax-pos">${pos}</span>
+        <span class="kallax-num">${bottiglie(vini) || ''}</span>
+        <span class="kallax-pallini">${pallini.map(c => `<i style="background:${c}"></i>`).join('')}</span>
+      </button>`;
+    }).join(''));
+  }
+  const fuori = Object.entries(perPosizione).filter(([pos]) => !previste.has(pos));
+  return `<div class="kallax">${righe.join('')}</div>` + (fuori.length ? `
+    <div class="chart-dettaglio">Altre posizioni: ${fuori.map(([pos, vini]) =>
+      `<a href="#" onclick="mostraCasella('${escapeHtml(pos)}');return false">${pos ? escapeHtml(pos) : 'senza posizione'} (${bottiglie(vini)})</a>`).join(', ')}</div>` : '');
+}
+
+function mostraCasella(pos) {
+  const vini = wines.filter(w => w.inStock && !w.deletedAt &&
+    (w.quadrante || '').trim().toLowerCase() === pos.toLowerCase());
+  const n = vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
+  document.getElementById('scaffaleDettaglio').innerHTML = vini.length
+    ? `<strong>${escapeHtml(pos || 'Senza posizione')}: ${n} bottiglie</strong><br>` + vini.map(w => {
+        const st = getDWStatus(w.finestraBevuta);
+        return `<i class="kallax-dot" style="background:${coloreStato(st.key)}"></i><a href="#" onclick="openModal('${w.id}');return false">${escapeHtml(w.bottiglia)} ${w.vendemmia || ''}</a> · ${st.label}${w.riconteggio > 1 ? ` · ${w.riconteggio} bott.` : ''}`;
+      }).join('<br>')
+    : `${escapeHtml(pos)}: casella vuota.`;
+}
+
+// Nomi delle regioni come li scrivi nell'app → codice ISTAT della mappa
+const ALIAS_REGIONI = {
+  'piemonte': '01', "valle d'aosta": '02', 'valle daosta': '02', 'lombardia': '03',
+  'trentino': '04', 'alto adige': '04', 'trentino-alto adige': '04', 'trentino alto adige': '04', 'sudtirol': '04',
+  'veneto': '05', 'friuli': '06', 'friuli-venezia giulia': '06', 'friuli venezia giulia': '06', 'liguria': '07',
+  'emilia-romagna': '08', 'emilia romagna': '08', 'emilia': '08', 'romagna': '08', 'toscana': '09', 'umbria': '10',
+  'marche': '11', 'lazio': '12', 'abruzzo': '13', 'molise': '14', 'campania': '15', 'puglia': '16',
+  'basilicata': '17', 'calabria': '18', 'sicilia': '19', 'sardegna': '20',
+};
+const codiceRegione = nome => ALIAS_REGIONI[(nome || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')];
+// Attenzione: "Rosso" inizia come "Rosè", quindi i rosati si riconoscono dalla vocale finale
+const famigliaTipo = tipo => /spumante/i.test(tipo || '') ? 'bollicine' : /^ros[eèé]$/i.test((tipo || '').trim()) ? 'rosati' : /bianco/i.test(tipo || '') ? 'bianchi' : 'rossi';
+const ripartoTipi = vini => {
+  const r = { rossi: 0, bianchi: 0, rosati: 0, bollicine: 0 };
+  vini.forEach(w => { r[famigliaTipo(w.tipo)] += (w.riconteggio || 0); });
+  const singolare = { rossi: 'rosso', bianchi: 'bianco', rosati: 'rosato', bollicine: 'bollicina' };
+  return Object.entries(r).filter(([, n]) => n).map(([k, n]) => `${n} ${n === 1 ? singolare[k] : k}`).join(' · ');
+};
+let datiMappa = null;
+
+async function disegnaMappa(inStock) {
+  const wrap = document.getElementById('mappaItalia');
+  if (!wrap) return;
+  try {
+    datiMappa = datiMappa || await (await fetch('assets/italia.json')).json();
+  } catch (e) {
+    wrap.innerHTML = '<div class="chart-sub">Mappa non disponibile offline.</div>';
+    return;
+  }
+  const perCodice = {};
+  const estero = {};
+  inStock.forEach(w => {
+    const c = codiceRegione(w.regione);
+    if (c) (perCodice[c] = perCodice[c] || []).push(w);
+    else (estero[w.regione || 'Senza regione'] = estero[w.regione || 'Senza regione'] || []).push(w);
+  });
+  const bottiglie = vini => vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
+  const max = Math.max(1, ...Object.values(perCodice).map(bottiglie));
+  // Colore dal fondo al vino, in scala radice per non schiacciare le regioni con poche bottiglie
+  const colore = n => n ? `rgba(196,69,94,${(0.18 + 0.82 * Math.sqrt(n / max)).toFixed(2)})` : 'var(--surface)';
+
+  wrap.innerHTML = `<svg viewBox="0 0 ${datiMappa.larghezza} ${datiMappa.altezza}" class="mappa-svg" role="img" aria-label="Bottiglie per regione">
+    ${datiMappa.regioni.map(r => {
+      const n = bottiglie(perCodice[r.codice] || []);
+      return `<path d="${r.d}" fill="${colore(n)}" class="mappa-reg${n ? ' piena' : ''}" data-codice="${r.codice}"><title>${escapeHtml(r.nome.split('/')[0])}: ${n} bottiglie</title></path>`;
+    }).join('')}
+    ${datiMappa.regioni.filter(r => perCodice[r.codice]).map(r =>
+      `<text x="${r.x}" y="${r.y}" class="mappa-num">${bottiglie(perCodice[r.codice])}</text>`).join('')}
+  </svg>`;
+  wrap.querySelectorAll('.mappa-reg').forEach(p => p.addEventListener('click', () => {
+    const r = datiMappa.regioni.find(x => x.codice === p.dataset.codice);
+    const vini = perCodice[r.codice] || [];
+    const nome = r.nome.split('/')[0];
+    document.getElementById('mappaDettaglio').innerHTML = vini.length
+      ? `<strong>${escapeHtml(nome)}: ${bottiglie(vini)} bottiglie</strong> (${ripartoTipi(vini)})<br>` +
+        vini.map(w => `<a href="#" onclick="openModal('${w.id}');return false">${escapeHtml(w.bottiglia)} ${w.vendemmia || ''}</a>`).join(', ')
+      : `${escapeHtml(nome)}: nessuna bottiglia in cantina.`;
+  }));
+
+  const righe = Object.entries(estero).sort((a, b) => bottiglie(b[1]) - bottiglie(a[1]));
+  document.getElementById('esteroWrap').innerHTML = righe.length ? `
+    <div class="chart-sub" style="margin-top:14px"><strong>🌎 Estero</strong></div>
+    ${righe.map(([paese, vini]) => `
+      <div class="bar-row">
+        <div class="bar-label">${escapeHtml(paese)}</div>
+        <div class="bar-track" style="background:none;color:var(--muted);font-size:11px;height:auto">${ripartoTipi(vini)}</div>
+        <div class="bar-count">${bottiglie(vini)}</div>
+      </div>`).join('')}` : '';
+}
+
+// Ritmo di consumo: stima dagli snapshot (bottiglie che calano) + date registrate dal 24/10/2026
+async function caricaConsumi(bottiglieInCantina) {
+  const wrap = document.getElementById('consumiWrap');
+  if (!wrap) return;
+  let dati;
+  try {
+    dati = await apiCall('GET', '/consumi');
+  } catch (e) {
+    wrap.textContent = 'Non disponibile senza connessione.';
+    return;
+  }
+  const serie = dati.serie || [];
+  let bevuteStimate = 0;
+  for (let i = 1; i < serie.length; i++) bevuteStimate += Math.max(0, serie[i - 1].bottiglie - serie[i].bottiglie);
+  const mesi = serie.length > 1 ? (Date.parse(serie.at(-1).data) - Date.parse(serie[0].data)) / (30.44 * 864e5) : 0;
+  const alMese = mesi >= 1 ? bevuteStimate / mesi : 0;
+
+  const bevute = (dati.bevute || []).map(d => Date.parse(d)).filter(Boolean);
+  const ultimi90 = bevute.filter(t => Date.now() - t < 90 * 864e5).length;
+  const daQuando = dati.registroDal ? new Date(dati.registroDal).toLocaleDateString('it-IT') : 'oggi';
+  const ritmo = ultimi90 >= 3 ? ultimi90 / 3 : alMese;
+  const durata = ritmo > 0 ? Math.round(bottiglieInCantina / ritmo) : null;
+
+  wrap.innerHTML = `
+    <div class="consumi-grid">
+      <div><div class="stat-val">${ritmo ? ritmo.toFixed(1) : '—'}</div><div class="stat-lbl">bottiglie al mese</div></div>
+      <div><div class="stat-val">${durata ? (durata >= 24 ? (durata / 12).toFixed(1) + ' anni' : durata + ' mesi') : '—'}</div><div class="stat-lbl">di autonomia al ritmo attuale</div></div>
+    </div>
+    <div style="margin-top:10px;line-height:1.6">
+      ${ultimi90 >= 3
+        ? `Calcolato sulle <strong>${ultimi90}</strong> bottiglie bevute negli ultimi 90 giorni.`
+        : `Stima dagli snapshot: circa <strong>${bevuteStimate}</strong> bottiglie uscite dal ${serie[0] ? new Date(serie[0].data).toLocaleDateString('it-IT') : '—'} (${mesi.toFixed(0)} mesi). È approssimata: acquisti e bevute nello stesso periodo si compensano.`}
+      <br><span style="color:var(--muted)">Dal ${daQuando} l'app registra la data di ogni bottiglia bevuta (${bevute.length} finora): il calcolo diventerà via via preciso.</span>
+    </div>`;
 }
 
 // AI Configuration handlers

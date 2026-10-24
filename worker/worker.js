@@ -13,6 +13,7 @@
 // POST   /db/:id/markin         → rimetti in cantina
 // POST   /db/:id/enrich         → metti in coda per l'arricchimento (prima Claude, poi riserva)
 // POST   /coda/avvia            → avvia subito Claude sui vini in coda, senza attesa
+// GET    /consumi               → bottiglie e valore per snapshot + date delle bevute registrate
 // POST   /ai                    → arricchimento AI immediato a crediti (Sonnet)
 // GET    /snapshots             → lista date snapshot
 // GET    /snapshots/:date       → scarica snapshot
@@ -52,6 +53,7 @@ export default {
     // AI
     if (path === '/ai' && method === 'POST') return handleAI(request, env);
     if (path === '/coda/avvia' && method === 'POST') return avviaOra(env, ctx);
+    if (path === '/consumi' && method === 'GET') return consumi(env);
 
     // Snapshots
     if (path === '/snapshots' && method === 'GET') return snapshotList(env);
@@ -172,6 +174,37 @@ async function snapshotRestore(date, env) {
   }
 }
 
+// ─── GET /consumi ────────────────────────────────────────
+// Serie bottiglie/valore dagli snapshot (più lo stato attuale) e date delle bevute registrate.
+async function consumi(env) {
+  const somma = wines => {
+    const stock = (wines || []).filter(w => w.inStock && !w.deletedAt);
+    return {
+      bottiglie: stock.reduce((s, w) => s + (w.riconteggio || 0), 0),
+      valore: Math.round(stock.reduce((s, w) => s + (w.riconteggio || 0) * (w.valore || 0), 0)),
+    };
+  };
+  const list = await env.CANTINA_DB.list({ prefix: 'snapshot:' });
+  const date = (list.keys || []).map(k => k.name.slice('snapshot:'.length)).sort();
+  const serie = [];
+  for (const data of date) {
+    try {
+      const snap = JSON.parse(await env.CANTINA_DB.get('snapshot:' + data));
+      serie.push({ data, ...somma(snap.wines) });
+    } catch (e) { /* snapshot illeggibile: saltato */ }
+  }
+  const db = await loadDB(env);
+  serie.push({ data: new Date().toISOString().slice(0, 10), ...somma(db.wines) });
+
+  let registroDal = await env.CANTINA_DB.get('bevute_registrate_dal');
+  if (!registroDal) {
+    registroDal = new Date().toISOString();
+    await env.CANTINA_DB.put('bevute_registrate_dal', registroDal);
+  }
+  const bevute = db.wines.flatMap(w => w.bevute || []).sort();
+  return jsonOK({ serie, bevute, registroDal });
+}
+
 // ─── GET /db ─────────────────────────────────────────────
 async function dbGetAll(env) { return jsonOK(await loadDB(env)); }
 
@@ -235,15 +268,24 @@ async function dbDecrement(id, env) {
   const db = await loadDB(env);
   const w = db.wines.find(w => String(w.id) === String(id));
   if (!w) return jsonError('Not found', 404);
+  if ((w.riconteggio || 0) > 0) registraBevute(w, 1);
   w.riconteggio = Math.max(0, (w.riconteggio || 0) - 1);
   await saveDB(db, env);
   return jsonOK(w);
+}
+
+// Data di ogni bottiglia bevuta, per il ritmo di consumo nelle statistiche
+function registraBevute(w, quante) {
+  const ora = new Date().toISOString();
+  w.bevute = [...(w.bevute || []), ...Array(quante).fill(ora)];
 }
 
 async function dbMarkOut(id, env) {
   const db = await loadDB(env);
   const w = db.wines.find(w => String(w.id) === String(id));
   if (!w) return jsonError('Not found', 404);
+  // Le bottiglie ancora presenti quando il vino passa nello storico contano come bevute
+  if ((w.riconteggio || 0) > 0) registraBevute(w, w.riconteggio);
   w.inStock = false;
   w.riconteggio = 0;
   w.quadrante = '';
