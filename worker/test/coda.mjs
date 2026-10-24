@@ -90,5 +90,24 @@ await timerECompleta(3);
 const vg = await vino(g);
 ok(vg.aiStato === 'errore' && /Claude API error/.test(vg.aiErrore), 'F: riserva fallita, vino segnato come errore con il motivo');
 
+// G. Pulsante "Avvia Claude ora": parte subito, senza attesa, e non riparte due volte
+execSync('npx wrangler kv key delete coda_meta --binding CANTINA_DB -c wrangler.test.jsonc --local', { cwd: new URL('..', import.meta.url), stdio: 'ignore' });
 await modo({ fire: 'ok', messages: 'ok' });
-console.log('\nTutto ok: Claude prima, riserva dopo l\'attesa, tetto giornaliero, avvio rifiutato ed errori.');
+const avvii = (await finto()).fire.length;
+const h = await crea('G'); await api('POST', `/db/${h}/enrich`);
+let r = await api('POST', '/coda/avvia');
+f = await finto();
+ok(r.esito.ok && f.fire.length === avvii + 1 && f.fire.at(-1).text.includes(h), 'G: "Avvia ora" parte subito, senza aspettare');
+r = await api('POST', '/coda/avvia');
+ok(!r.esito.ok && (await finto()).fire.length === avvii + 1, 'G: secondo clic non fa ripartire Claude (' + r.esito.motivo + ')');
+
+// H. "Avvia ora" con Claude non disponibile: risponde subito e la riserva parte in background
+await modo({ fire: 'rifiuta' });
+const k = await crea('H'); await api('POST', `/db/${k}/enrich`);
+r = await api('POST', '/coda/avvia');
+ok(!r.esito.ok && r.riserva === 1, 'H: avvio rifiutato, risposta immediata con riserva in corso');
+await attendi(2);
+ok((await vino(k)).aiStato === 'riserva', 'H: la riserva in background ha completato il vino');
+
+await modo({ fire: 'ok', messages: 'ok' });
+console.log('\nTutto ok: Claude prima, riserva dopo l\'attesa, tetto giornaliero, avvio rifiutato, errori e "Avvia ora".');

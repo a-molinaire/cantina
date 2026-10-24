@@ -12,7 +12,7 @@
   "triggers": { "crons": ["*/2 * * * *"] },
   "vars": {
     "ROUTINE_ID": "trig_0173DL1sBSLZwX2TKEEZcBGC",
-    "ATTESA_SECONDI": "600",
+    "ATTESA_SECONDI": "300",
     "RISERVA_SECONDI": "1800",
     "MAX_AVVII_GIORNO": "4"
   }

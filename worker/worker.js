@@ -12,6 +12,7 @@
 // POST   /db/:id/markout        → sposta nello storico
 // POST   /db/:id/markin         → rimetti in cantina
 // POST   /db/:id/enrich         → metti in coda per l'arricchimento (prima Claude, poi riserva)
+// POST   /coda/avvia            → avvia subito Claude sui vini in coda, senza attesa
 // POST   /ai                    → arricchimento AI immediato a crediti (Sonnet)
 // GET    /snapshots             → lista date snapshot
 // GET    /snapshots/:date       → scarica snapshot
@@ -35,7 +36,7 @@ const CORS_HEADERS = {
 };
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
 
     // Auth
@@ -50,6 +51,7 @@ export default {
 
     // AI
     if (path === '/ai' && method === 'POST') return handleAI(request, env);
+    if (path === '/coda/avvia' && method === 'POST') return avviaOra(env, ctx);
 
     // Snapshots
     if (path === '/snapshots' && method === 'GET') return snapshotList(env);
@@ -374,8 +376,23 @@ async function avviaClaude(env, vini) {
 }
 
 async function processaCoda(env) {
+  const { daRiserva } = await decidiCoda(env);
+  await eseguiRiserva(env, daRiserva);
+}
+
+// POST /coda/avvia — pulsante "Avvia Claude ora": salta l'attesa per i vini in coda.
+// Risponde appena deciso; l'eventuale riserva a crediti prosegue in background.
+async function avviaOra(env, ctx) {
+  const { esito, daRiserva, inAttesa } = await decidiCoda(env, { subito: true });
+  if (daRiserva.length) ctx.waitUntil(eseguiRiserva(env, daRiserva));
+  return jsonOK({ esito, inAttesa, riserva: daRiserva.length });
+}
+
+// Decide cosa fare dei vini in coda: avviare Claude, passare alla riserva o aspettare.
+// Con subito=true non aspetta ATTESA_SECONDI.
+async function decidiCoda(env, { subito = false } = {}) {
   const ora = Date.now();
-  const attesaMs = numero(env.ATTESA_SECONDI, 600) * 1000;
+  const attesaMs = numero(env.ATTESA_SECONDI, 300) * 1000;
   const riservaMs = numero(env.RISERVA_SECONDI, 1800) * 1000;
   const maxAvvii = numero(env.MAX_AVVII_GIORNO, 4);
 
@@ -393,13 +410,14 @@ async function processaCoda(env) {
 
   const daRiserva = coda.filter(w => meta.avviati[String(w.id)] && ora - Date.parse(meta.avviati[String(w.id)]) >= riservaMs);
   const nuovi = coda.filter(w => !meta.avviati[String(w.id)]);
+  let esito = nuovi.length ? null : { ok: false, motivo: 'nessun vino nuovo in coda' };
 
   if (nuovi.length) {
     const ultimoIngresso = Math.max(...nuovi.map(w => Date.parse(w.aiCodaDal) || 0));
-    if (ora - ultimoIngresso >= attesaMs) {
+    if (subito || ora - ultimoIngresso >= attesaMs) {
       const oggi = new Date(ora).toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
       if (meta.giorno !== oggi) Object.assign(meta, { giorno: oggi, avvii: 0 });
-      const esito = meta.avvii < maxAvvii
+      esito = meta.avvii < maxAvvii
         ? await avviaClaude(env, nuovi)
         : { ok: false, motivo: `tetto di ${maxAvvii} avvii al giorno raggiunto` };
       meta.ultimoEsito = { quando: new Date(ora).toISOString(), vini: nuovi.length, ...esito };
@@ -413,7 +431,10 @@ async function processaCoda(env) {
   }
   for (const w of daRiserva) meta.inRiserva[String(w.id)] = new Date(ora).toISOString();
   await env.CANTINA_DB.put(META_KEY, JSON.stringify(meta));
+  return { esito, daRiserva, inAttesa: coda.length - daRiserva.length };
+}
 
+async function eseguiRiserva(env, daRiserva) {
   for (const w of daRiserva) {
     const esito = await arricchisciConAPI(w, env);
     // Ricarico prima di scrivere: nel frattempo Claude o l'app possono aver toccato il vino
