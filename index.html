@@ -975,7 +975,7 @@ body.tab-storico .sort-opt-pos {
 // ═══════════════════════════════════════════════════════════
 // VERSION
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v31 — Ottobre 2026';
+const APP_VERSION = 'v32 — Ottobre 2026';
 
 // Accesso: il vero lucchetto è il token del Worker. Niente password nel codice.
 // Il dispositivo è "collegato" quando ha URL Worker + token salvati in localStorage.
@@ -2644,7 +2644,7 @@ function renderStats() {
       <div class="chart-title">Curva di maturità <span class="stats-scope-badge">🍷 Solo cantina</span></div>
       <div class="chart-sub" id="maturitaSintesi"></div>
       <div class="chart-box"><canvas id="chartMaturita"></canvas></div>
-      <div class="chart-dettaglio" id="maturitaDettaglio">Tocca un anno per vedere i vini all'apice.</div>
+      <div class="chart-dettaglio" id="maturitaDettaglio">Tocca un anno per vedere i vini di ogni stato.</div>
     </div>
 
     <div class="chart-card">
@@ -2656,7 +2656,6 @@ function renderStats() {
       <div class="chart-title">Bottiglie per regione <span class="stats-scope-badge">🍷 Solo cantina</span></div>
       <div class="mappa-wrap" id="mappaItalia"><div class="chart-sub">Caricamento mappa…</div></div>
       <div class="regioni-elenco" id="esteroWrap"></div>
-      <div class="chart-dettaglio" id="mappaDettaglio">Tocca una regione, sulla mappa o nell'elenco, per vedere i vini.</div>
     </div>
 
     <div class="chart-card">
@@ -2920,7 +2919,6 @@ function disegnaMaturita(inStock) {
       },
     },
   });
-  dettaglioMaturita(conFinestra, oggi);
 }
 
 // Sotto la curva: i vini di un anno raggruppati per stato, dal più urgente
@@ -2933,11 +2931,11 @@ function dettaglioMaturita(conFinestra, anno) {
     if (!vini.length) return '';
     const n = vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
     return `<div class="elenco-gruppo"><strong style="color:${stato.colore}">${stato.label}: ${bottiglieTxt(n)}</strong><br>` +
-      elencoViniHtml(vini, () => stato.colore, w => `finestra ${w.finestraBevuta.start}–${w.finestraBevuta.end}${w.riconteggio > 1 ? ' · ' + w.riconteggio + ' bott.' : ''}`) +
+      vini.map(w => `<a href="#" onclick="openModal('${w.id}');return false">${escapeHtml(w.bottiglia)} ${w.vendemmia || ''}</a>`).join(', ') +
       '</div>';
   }).join('');
   document.getElementById('maturitaDettaglio').innerHTML =
-    `<div class="elenco-anno">Nel <strong>${anno}</strong>${anno === new Date().getFullYear() ? ' (oggi)' : ''} · tocca un altro anno del grafico per cambiarlo</div>` + gruppi;
+    `<div class="elenco-anno">Nel <strong>${anno}</strong>${anno === new Date().getFullYear() ? ' (oggi)' : ''}</div>` + gruppi;
 }
 
 // Scaffale: Kallax 2×2 impilati = 2 colonne (Sx, Dx) × 6 caselle, la casella 1 è in basso.
@@ -3041,30 +3039,13 @@ async function disegnaMappa(inStock) {
     ...Object.entries(perCodice).map(([codice, vini]) => ({ nome: nomeRegione(codice), vini, colore: colore(bottiglie(vini)), estero: false })),
     ...Object.entries(estero).map(([paese, vini]) => ({ nome: paese, vini, colore: 'var(--blue)', estero: true })),
   ].sort((a, b) => (a.estero - b.estero) || (bottiglie(b.vini) - bottiglie(a.vini)));
-  elencoRegioni = righe;
   document.getElementById('esteroWrap').innerHTML = righe.map((r, i) => `
     ${r.estero && !righe[i - 1]?.estero ? '<div class="elenco-anno" style="margin-top:10px">🌎 Estero</div>' : ''}
-    <a href="#" class="regione-riga" onclick="mostraRegione(${i});return false">
+    <div class="regione-riga">
       <i class="kallax-dot" style="background:${r.colore}"></i>
       <strong>${escapeHtml(r.nome)}</strong>
       <span class="elenco-extra"> · ${bottiglieTxt(bottiglie(r.vini))} · ${ripartoTipi(r.vini)}</span>
-    </a>`).join('');
-
-  wrap.querySelectorAll('.mappa-reg').forEach(p => p.addEventListener('click', () => {
-    const i = righe.findIndex(r => !r.estero && r.nome === nomeRegione(p.dataset.codice));
-    if (i >= 0) mostraRegione(i);
-    else document.getElementById('mappaDettaglio').textContent = `${nomeRegione(p.dataset.codice)}: nessuna bottiglia in cantina.`;
-  }));
-}
-
-let elencoRegioni = [];
-function mostraRegione(i) {
-  const r = elencoRegioni[i];
-  const n = r.vini.reduce((s, w) => s + (w.riconteggio || 0), 0);
-  const box = document.getElementById('mappaDettaglio');
-  box.innerHTML = `<strong>${escapeHtml(r.nome)}: ${bottiglieTxt(n)}</strong> (${ripartoTipi(r.vini)})<br>` +
-    elencoViniHtml(r.vini, w => coloreFamiglia(w.tipo), w => `${w.tipo}${w.area && w.area !== w.regione ? ' · ' + escapeHtml(w.area) : ''}${w.riconteggio > 1 ? ' · ' + w.riconteggio + ' bott.' : ''}`);
-  box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    </div>`).join('');
 }
 
 // Ritmo di consumo: stima dagli snapshot (bottiglie che calano) + date registrate dal 24/10/2026
