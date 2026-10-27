@@ -5,8 +5,12 @@
   "name": "cantina-ai-test",
   "main": "worker.js",
   "compatibility_date": "2026-04-21",
+  // KV_VECCHIO: archivio precedente, solo letto durante la migrazione. ARCHIVIO: D1, l'archivio attuale.
   "kv_namespaces": [
-    { "binding": "CANTINA_DB", "id": "local-test-cantina" }
+    { "binding": "KV_VECCHIO", "id": "local-test-cantina" }
+  ],
+  "d1_databases": [
+    { "binding": "ARCHIVIO", "database_name": "cantina-test", "database_id": "local-test-d1", "migrations_dir": "migrations" }
   ],
   "triggers": { "crons": ["*/2 * * * *"] },
   "vars": {

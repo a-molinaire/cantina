@@ -25,7 +25,6 @@
 // Modello della riserva a crediti: entra in gioco solo se Claude (abbonamento) non arricchisce il vino
 const MODEL = 'claude-sonnet-5-5';
 const MAX_TOKENS = 2000;
-const TEMPERATURE = 0;
 const DB_KEY = 'db';
 const SNAPSHOT_RETENTION_DAYS = 30;
 
@@ -38,78 +37,189 @@ const CORS_HEADERS = {
 
 export default {
   async fetch(request, env, ctx) {
-    if (request.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
-
-    // Auth
-    const auth = request.headers.get('Authorization') || '';
-    const token = auth.replace(/^Bearer\s+/i, '').trim();
-    if (!env.CANTINA_TOKEN) return jsonError('CANTINA_TOKEN not configured', 500);
-    if (token !== env.CANTINA_TOKEN) return jsonError('Unauthorized', 401);
-
-    const url = new URL(request.url);
-    const path = url.pathname.replace(/\/+$/, '') || '/';
-    const method = request.method;
-
-    // AI
-    if (path === '/ai' && method === 'POST') return handleAI(request, env);
-    if (path === '/coda/avvia' && method === 'POST') return avviaOra(env, ctx);
-    if (path === '/consumi' && method === 'GET') return consumi(env);
-
-    // Snapshots
-    if (path === '/snapshots' && method === 'GET') return snapshotList(env);
-    const snapMatch = path.match(/^\/snapshots\/([0-9-]+)(?:\/(\w+))?$/);
-    if (snapMatch) {
-      const date = snapMatch[1];
-      const action = snapMatch[2];
-      if (!action && method === 'GET') return snapshotGet(date, env);
-      if (action === 'restore' && method === 'POST') return snapshotRestore(date, env);
-    }
-
-    // DB root
-    if (path === '/db' && method === 'GET')   return dbGetAll(env);
-    if (path === '/db' && method === 'POST')  return dbCreate(request, env);
-
-    // /db/:id o /db/:id/action
-    const m = path.match(/^\/db\/([^\/]+)(?:\/(\w+))?$/);
-    if (m) {
-      const id = m[1];
-      const action = m[2];
-      if (!action) {
-        if (method === 'GET')    return dbGetOne(id, env);
-        if (method === 'PATCH')  return dbPatch(id, request, env);
-        if (method === 'DELETE') return dbDelete(id, env);
-      } else if (method === 'POST') {
-        if (action === 'increment') return dbIncrement(id, env);
-        if (action === 'decrement') return dbDecrement(id, env);
-        if (action === 'markout')   return dbMarkOut(id, env);
-        if (action === 'markin')    return dbMarkIn(id, env);
-        if (action === 'enrich')    return dbEnqueue(id, env);
+    env = { ...env, CANTINA_DB: archivio(env) };
+    // Se un altro salvataggio si è infilato tra lettura e scrittura, la richiesta riparte da capo
+    // dopo una pausa breve e casuale, così le richieste in conflitto non si riscontrano subito
+    for (let tentativo = 1; ; tentativo++) {
+      try {
+        return await gestisci(request.clone(), env, ctx);
+      } catch (e) {
+        if (!(e instanceof ConflittoDB)) throw e;
+        if (tentativo >= 12) return jsonError('Salvataggio in conflitto con un altro, riprova', 409);
+        await new Promise(r => setTimeout(r, 20 + Math.random() * 40 * tentativo));
       }
     }
-
-    return jsonError('Not found: ' + method + ' ' + path, 404);
   },
 
   // Timer (cron in wrangler.jsonc): avvia Claude sui vini in coda o passa alla riserva
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(processaCoda(env));
+    ctx.waitUntil(processaCoda({ ...env, CANTINA_DB: archivio(env) }));
   },
 };
 
-// ─── KV helpers ──────────────────────────────────────────
+async function gestisci(request, env, ctx) {
+  if (request.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
+
+  // Auth
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.replace(/^Bearer\s+/i, '').trim();
+  if (!env.CANTINA_TOKEN) return jsonError('CANTINA_TOKEN not configured', 500);
+  if (token !== env.CANTINA_TOKEN) return jsonError('Unauthorized', 401);
+
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/\/+$/, '') || '/';
+  const method = request.method;
+
+  // AI
+  if (path === '/ai' && method === 'POST') return handleAI(request, env);
+  if (path === '/coda/avvia' && method === 'POST') return avviaOra(env, ctx);
+  if (path === '/consumi' && method === 'GET') return consumi(env);
+  if (path === '/admin/migra' && method === 'POST') return migraDaKV(env, url);
+
+  // Snapshots
+  if (path === '/snapshots' && method === 'GET') return snapshotList(env);
+  const snapMatch = path.match(/^\/snapshots\/([0-9-]+)(?:\/(\w+))?$/);
+  if (snapMatch) {
+    const date = snapMatch[1];
+    const action = snapMatch[2];
+    if (!action && method === 'GET') return snapshotGet(date, env);
+    if (action === 'restore' && method === 'POST') return snapshotRestore(date, env);
+  }
+
+  // DB root
+  if (path === '/db' && method === 'GET')   return dbGetAll(env);
+  if (path === '/db' && method === 'POST')  return dbCreate(request, env);
+
+  // /db/:id o /db/:id/action
+  const m = path.match(/^\/db\/([^\/]+)(?:\/(\w+))?$/);
+  if (m) {
+    const id = m[1];
+    const action = m[2];
+    if (!action) {
+      if (method === 'GET')    return dbGetOne(id, env);
+      if (method === 'PATCH')  return dbPatch(id, request, env);
+      if (method === 'DELETE') return dbDelete(id, env);
+    } else if (method === 'POST') {
+      if (action === 'increment') return dbIncrement(id, env);
+      if (action === 'decrement') return dbDecrement(id, env);
+      if (action === 'markout')   return dbMarkOut(id, env);
+      if (action === 'markin')    return dbMarkIn(id, env);
+      if (action === 'enrich')    return dbEnqueue(id, env);
+    }
+  }
+
+  return jsonError('Not found: ' + method + ' ' + path, 404);
+}
+
+// ─── Archivio: D1 al posto di KV ─────────────────────────
+// KV può restituire per qualche secondo una copia vecchia: con salvataggi ravvicinati
+// (Claude che arricchisce 10 vini di fila) un salvataggio cancellava il precedente.
+// D1 legge sempre il dato aggiornato. L'archivio espone la stessa interfaccia di KV
+// (get/put/list/delete), così il resto del codice non cambia.
+// Migrazione senza fermo: finché in D1 manca la chiave MIGRAZIONE_KEY, ciò che D1 non ha
+// ancora viene letto da KV (binding KV_VECCHIO), che non viene mai modificato né cancellato.
+const MIGRAZIONE_KEY = 'migrazione_kv_completata';
+
+function archivio(env) {
+  const d1 = env.ARCHIVIO;
+  const kv = env.KV_VECCHIO;
+  let migrata;
+  const migrazioneCompleta = async () =>
+    (migrata ??= !!(await d1.prepare('SELECT 1 FROM kv WHERE chiave = ?').bind(MIGRAZIONE_KEY).first()));
+  const riga = chiave => d1.prepare('SELECT valore, versione FROM kv WHERE chiave = ?').bind(chiave).first();
+
+  return {
+    async get(chiave) {
+      return (await this.getConVersione(chiave)).valore;
+    },
+    async getConVersione(chiave) {
+      const r = await riga(chiave);
+      if (r) return { valore: r.valore, versione: r.versione };
+      if (kv && !(await migrazioneCompleta())) return { valore: await kv.get(chiave), versione: null };
+      return { valore: null, versione: null };
+    },
+    async put(chiave, valore) {
+      await d1.prepare(
+        'INSERT INTO kv (chiave, valore, versione) VALUES (?, ?, 1) ' +
+        'ON CONFLICT(chiave) DO UPDATE SET valore = excluded.valore, versione = kv.versione + 1'
+      ).bind(chiave, valore).run();
+    },
+    // Scrive solo se nessun altro ha salvato dopo la nostra lettura (versione = null: chiave non ancora in D1)
+    async putSeVersione(chiave, valore, versione) {
+      const res = versione == null
+        ? await d1.prepare('INSERT INTO kv (chiave, valore, versione) VALUES (?, ?, 1) ON CONFLICT(chiave) DO NOTHING')
+            .bind(chiave, valore).run()
+        : await d1.prepare('UPDATE kv SET valore = ?, versione = versione + 1 WHERE chiave = ? AND versione = ?')
+            .bind(valore, chiave, versione).run();
+      return res.meta.changes === 1;
+    },
+    async list({ prefix = '' } = {}) {
+      const { results } = await d1.prepare("SELECT chiave FROM kv WHERE chiave LIKE ? ESCAPE '\\'")
+        .bind(prefix.replace(/[%_\\]/g, '\\$&') + '%').all();
+      const nomi = new Set(results.map(r => r.chiave));
+      if (kv && !(await migrazioneCompleta())) (await kv.list({ prefix })).keys.forEach(k => nomi.add(k.name));
+      return { keys: [...nomi].sort().map(name => ({ name })) };
+    },
+    async delete(chiave) {
+      await d1.prepare('DELETE FROM kv WHERE chiave = ?').bind(chiave).run();
+    },
+  };
+}
+
+// Un altro salvataggio è arrivato tra la nostra lettura e la nostra scrittura: si rilegge e si riprova
+class ConflittoDB extends Error {}
+const versioniLette = new WeakMap();
+
+// ─── Database dei vini ───────────────────────────────────
 async function loadDB(env) {
-  if (!env.CANTINA_DB) throw new Error('CANTINA_DB KV not bound');
-  const raw = await env.CANTINA_DB.get(DB_KEY);
-  if (!raw) return { wines: [] };
-  try { return JSON.parse(raw); } catch (e) { return { wines: [] }; }
+  const { valore, versione } = await env.CANTINA_DB.getConVersione(DB_KEY);
+  let db = { wines: [] };
+  if (valore) {
+    try { db = JSON.parse(valore); } catch (e) { throw new Error('Database illeggibile'); }
+  }
+  versioniLette.set(db, versione);
+  return db;
 }
 
 async function saveDB(db, env) {
   db.lastServerUpdate = new Date().toISOString();
-  await env.CANTINA_DB.put(DB_KEY, JSON.stringify(db));
+  const versione = versioniLette.get(db) ?? null;
+  if (!(await env.CANTINA_DB.putSeVersione(DB_KEY, JSON.stringify(db), versione))) {
+    throw new ConflittoDB('Il database è cambiato durante il salvataggio');
+  }
+  versioniLette.set(db, (versione ?? 0) + 1);
   // Prima di salvare, crea snapshot di oggi se non esiste già
   await ensureDailySnapshot(db, env);
   return db;
+}
+
+// ─── POST /admin/migra ───────────────────────────────────
+// Copia in D1 le chiavi di KV che D1 non ha ancora (non sovrascrive mai) e confronta il contenuto.
+// Con ?chiudi=1, se D1 ha tutte le chiavi, segna la migrazione come completata (da lì solo D1).
+async function migraDaKV(env, url) {
+  const kv = env.KV_VECCHIO;
+  if (!kv) return jsonError('KV_VECCHIO non collegato', 500);
+  const chiavi = (await kv.list()).keys.map(k => k.name);
+  const report = [];
+  for (const chiave of chiavi) {
+    const valoreKV = await kv.get(chiave);
+    const prima = await env.ARCHIVIO.prepare('SELECT valore FROM kv WHERE chiave = ?').bind(chiave).first();
+    let azione = 'già in D1';
+    if (!prima) {
+      await env.ARCHIVIO.prepare('INSERT INTO kv (chiave, valore, versione) VALUES (?, ?, 1) ON CONFLICT(chiave) DO NOTHING')
+        .bind(chiave, valoreKV).run();
+      azione = 'copiata';
+    }
+    const dopo = await env.ARCHIVIO.prepare('SELECT valore FROM kv WHERE chiave = ?').bind(chiave).first();
+    report.push({ chiave, azione, presente: !!dopo, uguale: dopo?.valore === valoreKV, byte: valoreKV.length });
+  }
+  const tutteInD1 = report.every(r => r.presente);
+  let chiusa = false;
+  if (url.searchParams.get('chiudi') === '1' && tutteInD1) {
+    await env.CANTINA_DB.put(MIGRAZIONE_KEY, new Date().toISOString());
+    chiusa = true;
+  }
+  return jsonOK({ chiavi: report.length, tutteInD1, chiusa, report });
 }
 
 async function ensureDailySnapshot(db, env) {
@@ -331,7 +441,6 @@ async function arricchisciConAPI(wine, env) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        temperature: TEMPERATURE,
         messages: [{ role: 'user', content: prompt }],
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
       }),
@@ -440,6 +549,7 @@ async function decidiCoda(env, { subito = false } = {}) {
 
   const db = await loadDB(env);
   const meta = await leggiMeta(env);
+  const metaPrima = JSON.stringify(meta);
 
   // Dimentica avvii e riserve di vini che non sono più in coda (Claude li ha completati)
   const inCoda = new Set(db.wines.filter(w => w.aiStato === 'coda' && !w.deletedAt).map(w => String(w.id)));
@@ -472,35 +582,45 @@ async function decidiCoda(env, { subito = false } = {}) {
     }
   }
   for (const w of daRiserva) meta.inRiserva[String(w.id)] = new Date(ora).toISOString();
-  await env.CANTINA_DB.put(META_KEY, JSON.stringify(meta));
+  // Scrive solo se qualcosa è cambiato: il timer gira ogni 2 minuti e il piano gratuito di KV
+  // concede 1.000 scritture al giorno (scrivere sempre ne consumava 720)
+  if (JSON.stringify(meta) !== metaPrima) await env.CANTINA_DB.put(META_KEY, JSON.stringify(meta));
   return { esito, daRiserva, inAttesa: coda.length - daRiserva.length };
 }
 
 async function eseguiRiserva(env, daRiserva) {
   for (const w of daRiserva) {
     const esito = await arricchisciConAPI(w, env);
-    // Ricarico prima di scrivere: nel frattempo Claude o l'app possono aver toccato il vino
-    const fresco = await loadDB(env);
-    const v = fresco.wines.find(x => String(x.id) === String(w.id));
-    if (!v || v.aiStato !== 'coda') continue;
-    if (esito.error) {
-      Object.assign(v, { aiStato: 'errore', aiErrore: esito.error });
-    } else {
-      const r = esito.result;
-      Object.assign(v, {
-        finestraBevuta: r.finestraBevuta,
-        abbinamenti: r.abbinamenti,
-        aiEnriched: true,
-        aiLivello: r.livello || 3,
-        aiFonte: r.fonte || '',
-        aiNote: r.note || '',
-        aiTimestamp: new Date().toISOString(),
-        aiStato: 'riserva',
-        aiErrore: null,
-        dwSource: null,
-      });
+    // Ricarico prima di scrivere (nel frattempo Claude o l'app possono aver toccato il vino)
+    // e in caso di conflitto rileggo e riprovo
+    for (let tentativo = 1; tentativo <= 4; tentativo++) {
+      const fresco = await loadDB(env);
+      const v = fresco.wines.find(x => String(x.id) === String(w.id));
+      if (!v || v.aiStato !== 'coda') break;
+      if (esito.error) {
+        Object.assign(v, { aiStato: 'errore', aiErrore: esito.error });
+      } else {
+        const r = esito.result;
+        Object.assign(v, {
+          finestraBevuta: r.finestraBevuta,
+          abbinamenti: r.abbinamenti,
+          aiEnriched: true,
+          aiLivello: r.livello || 3,
+          aiFonte: r.fonte || '',
+          aiNote: r.note || '',
+          aiTimestamp: new Date().toISOString(),
+          aiStato: 'riserva',
+          aiErrore: null,
+          dwSource: null,
+        });
+      }
+      try {
+        await saveDB(fresco, env);
+        break;
+      } catch (e) {
+        if (!(e instanceof ConflittoDB) || tentativo === 4) throw e;
+      }
     }
-    await saveDB(fresco, env);
     const m = await leggiMeta(env);
     delete m.avviati[String(w.id)];
     delete m.inRiserva[String(w.id)];

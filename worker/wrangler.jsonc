@@ -5,8 +5,13 @@
   "main": "worker.js",
   "compatibility_date": "2026-04-21",
   "workers_dev": true,
+  // ARCHIVIO (D1) è l'archivio dei dati. KV_VECCHIO è il vecchio archivio KV: dopo la migrazione
+  // non viene più letto né scritto, resta solo come copia di sicurezza.
   "kv_namespaces": [
-    { "binding": "CANTINA_DB", "id": "cd8096b3df154ec89e43a15c5a81625d" }
+    { "binding": "KV_VECCHIO", "id": "cd8096b3df154ec89e43a15c5a81625d" }
+  ],
+  "d1_databases": [
+    { "binding": "ARCHIVIO", "database_name": "cantina", "database_id": "4e07336b-cd73-48d7-aeb1-334ecf3b5b56", "migrations_dir": "migrations" }
   ],
   // Coda di arricchimento: il timer avvia Claude (abbonamento) o la riserva a crediti
   "triggers": { "crons": ["*/2 * * * *"] },

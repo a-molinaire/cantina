@@ -21,11 +21,14 @@ const vino = async id => api('GET', '/db/' + id);
 // Il timer gira dentro waitUntil: aspetto che abbia finito prima di controllare
 const timerECompleta = async (sec = 2) => { await timer(); await attendi(sec); };
 
+// Azzera lo stato della coda (avvii del giorno) nel D1 locale
+const azzeraMeta = () => execSync(`npx wrangler d1 execute cantina-test --local -c wrangler.test.jsonc --command "DELETE FROM kv WHERE chiave='coda_meta'"`, { cwd: new URL('..', import.meta.url), stdio: 'ignore' });
+
 // Vini di prova nuovi a ogni esecuzione
 const crea = async nome => (await api('POST', '/db', { azienda: 'Prova Coda', bottiglia: nome + ' ' + Date.now(), tipo: 'Rosso', vendemmia: 2020, inStock: true, riconteggio: 1 })).id;
 
 // Stato pulito: niente avvii registrati oggi
-execSync('npx wrangler kv key delete coda_meta --binding CANTINA_DB -c wrangler.test.jsonc --local', { cwd: new URL('..', import.meta.url), stdio: 'ignore' });
+azzeraMeta();
 await fetch(FINTO + '/_azzera', { method: 'POST' });
 await modo({ fire: 'ok', messages: 'ok' });
 
@@ -74,7 +77,7 @@ f = await finto();
 ok(f.fire.length === 2 && (await vino(d)).aiStato === 'riserva', 'D: tetto raggiunto, riserva subito senza avviare Claude');
 
 // E. Avvio rifiutato (abbonamento esaurito / limite): riserva immediata
-execSync('npx wrangler kv key delete coda_meta --binding CANTINA_DB -c wrangler.test.jsonc --local', { cwd: new URL('..', import.meta.url), stdio: 'ignore' });
+azzeraMeta();
 await modo({ fire: 'rifiuta' });
 const e = await crea('E'); await api('POST', `/db/${e}/enrich`);
 await attendi(4.5);
@@ -91,7 +94,7 @@ const vg = await vino(g);
 ok(vg.aiStato === 'errore' && /Claude API error/.test(vg.aiErrore), 'F: riserva fallita, vino segnato come errore con il motivo');
 
 // G. Pulsante "Avvia Claude ora": parte subito, senza attesa, e non riparte due volte
-execSync('npx wrangler kv key delete coda_meta --binding CANTINA_DB -c wrangler.test.jsonc --local', { cwd: new URL('..', import.meta.url), stdio: 'ignore' });
+azzeraMeta();
 await modo({ fire: 'ok', messages: 'ok' });
 const avvii = (await finto()).fire.length;
 const h = await crea('G'); await api('POST', `/db/${h}/enrich`);
